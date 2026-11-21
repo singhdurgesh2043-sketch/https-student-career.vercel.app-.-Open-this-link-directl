@@ -34,7 +34,7 @@ export const BRANDING: AppBranding = {
   tagline: 'Professional Coaching & Tuition Centre Management',
   packageId: 'com.studentcareer.app',
   supportEmail: 'support@studentcareer.app',
-  officialWebsite: 'https://student-career.vercel.app',
+  officialWebsite: 'https://studentcareerapp.vercel.app',
   githubRepo: 'https://github.com/singhdurgesh2043-sketch/https-student-career.vercel.app-.-Open-this-link-directl',
   colors: {
     primary: '#1e3a8a',      // Navy 900

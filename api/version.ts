@@ -49,6 +49,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     ],
     updateType: 'hybrid', // 'web_only' | 'native_required' | 'hybrid'
     supportEmail: 'support@studentcareer.app',
-    officialWebsite: 'https://student-career.vercel.app',
+    officialWebsite: 'https://studentcareerapp.vercel.app',
   });
 }

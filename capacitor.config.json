@@ -6,7 +6,7 @@
     "androidScheme": "https",
     "cleartext": false,
     "allowNavigation": [
-      "student-career.vercel.app",
+      "studentcareerapp.vercel.app",
       "localhost"
     ]
   },
