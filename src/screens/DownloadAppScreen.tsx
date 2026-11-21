@@ -231,7 +231,7 @@ export const DownloadAppScreen: React.FC<DownloadAppScreenProps> = ({
           </div>
 
           <a
-            href="https://github.com/singhdurgesh2043-sketch/https-student-career.vercel.app-.-Open-this-link-directl/actions/runs/44860357626"
+            href="https://github.com/singhdurgesh2043-sketch/https-student-career.vercel.app-.-Open-this-link-directl/actions/runs/44865483909"
             target="_blank"
             rel="noopener noreferrer"
             className="w-full py-2.5 bg-emerald-700 hover:bg-emerald-800 active:scale-[0.98] text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition shadow"
