@@ -1,10 +1,68 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { verifyAdminSessionToken } from './_security';
+import crypto from 'crypto';
 
 /**
  * Server-Side Super Admin Session Verification
  * Verifies that a client's session token is cryptographically signed and active.
  */
+
+interface AdminSessionPayload {
+  role: 'superadmin';
+  iat: number;
+  exp: number;
+  jti: string;
+}
+
+function verifyAdminSessionToken(
+  token: string,
+  signingSecret: string
+): { valid: boolean; payload?: AdminSessionPayload; error?: string } {
+  if (!token || typeof token !== 'string') {
+    return { valid: false, error: 'Session token missing or invalid format.' };
+  }
+
+  const parts = token.split('.');
+  if (parts.length !== 2) {
+    return { valid: false, error: 'Malformed session token.' };
+  }
+
+  const [payloadStr, signature] = parts;
+  const hmac = crypto.createHmac('sha256', signingSecret);
+  hmac.update(payloadStr);
+  const expectedSig = hmac.digest('base64url');
+
+  if (signature.length !== expectedSig.length) {
+    crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(signature));
+    return { valid: false, error: 'Invalid session token signature.' };
+  }
+
+  const isSigMatch = crypto.timingSafeEqual(
+    Buffer.from(signature, 'utf8'),
+    Buffer.from(expectedSig, 'utf8')
+  );
+
+  if (!isSigMatch) {
+    return { valid: false, error: 'Session token signature mismatch.' };
+  }
+
+  try {
+    const payloadJson = Buffer.from(payloadStr, 'base64url').toString('utf8');
+    const payload: AdminSessionPayload = JSON.parse(payloadJson);
+
+    if (payload.role !== 'superadmin') {
+      return { valid: false, error: 'Invalid session role claim.' };
+    }
+
+    if (Date.now() > payload.exp) {
+      return { valid: false, error: 'Session token has expired.' };
+    }
+
+    return { valid: true, payload };
+  } catch {
+    return { valid: false, error: 'Corrupted session token payload.' };
+  }
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST' && req.method !== 'GET') {
     return res.status(405).json({
