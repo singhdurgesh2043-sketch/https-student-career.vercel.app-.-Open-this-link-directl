@@ -18,6 +18,8 @@ export interface CentreProfile {
   upi_id?: string;
   razorpay_key_id?: string;
   created_at?: string;
+  is_demo?: boolean;
+  status?: 'active' | 'inactive';
 }
 
 export interface LicenceInfo {
@@ -35,6 +37,7 @@ export interface LicenceInfo {
   device_count: number;
   activated_at?: string;
   device_uuid?: string;
+  is_demo?: boolean;
 }
 
 export type AttendanceStatus = 'present' | 'absent' | 'late' | 'leave';
@@ -51,6 +54,7 @@ export interface AttendanceRecord {
   remarks?: string;
   marked_by?: string;
   created_at?: string;
+  is_demo?: boolean;
 }
 
 export type PaymentStatus = 'paid' | 'partial' | 'pending' | 'overdue';
@@ -76,6 +80,7 @@ export interface Student {
   payment_due_date: number; // day of month 1-31
   payment_status: PaymentStatus;
   is_active: boolean;
+  is_demo?: boolean;
   total_paid?: number;
   pending_balance?: number;
 }
@@ -94,6 +99,7 @@ export interface Batch {
   room_number?: string;
   capacity?: number;
   student_count?: number;
+  is_demo?: boolean;
 }
 
 export interface Teacher {
@@ -105,6 +111,7 @@ export interface Teacher {
   subjects: string[];
   qualification?: string;
   salary_monthly?: number;
+  is_demo?: boolean;
 }
 
 export interface FeePayment {
@@ -124,6 +131,7 @@ export interface FeePayment {
   status: 'success' | 'pending' | 'failed';
   notes?: string;
   received_by?: string;
+  is_demo?: boolean;
 }
 
 export interface SubjectMarks {
@@ -149,6 +157,7 @@ export interface ProgressReport {
   improvement_areas: string;
   next_week_goals: string;
   pdf_url?: string;
+  is_demo?: boolean;
 }
 
 export type ActiveScreen = 

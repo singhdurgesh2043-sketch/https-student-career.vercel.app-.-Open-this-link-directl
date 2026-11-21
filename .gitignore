@@ -3,6 +3,9 @@ node_modules
 dist
 dist-ssr
 *.local
+.env
+.env.local
+.env.*.local
 
 # Logs
 logs
@@ -25,6 +28,9 @@ release.keystore
 *.p8
 *.p12
 *.key
+
+# Scratch and temporary scripts
+scratch/
 
 # Editor & OS files
 .vscode/*

@@ -1,6 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { App as CapApp } from '@capacitor/app';
-import { ActiveScreen, CentreProfile, LicenceInfo, Student, Batch, Teacher, AttendanceRecord, FeePayment, ProgressReport } from './types';
+import {
+  ActiveScreen,
+  CentreProfile,
+  LicenceInfo,
+  Student,
+  Batch,
+  Teacher,
+  AttendanceRecord,
+  FeePayment,
+  ProgressReport,
+} from './types';
 import { AppStorage, INITIAL_CENTRE, INITIAL_LICENCE } from './lib/storage';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { Header } from './components/common/Header';
@@ -28,9 +38,9 @@ export function AppContent() {
   const [licence, setLicence] = useState<LicenceInfo | null>(INITIAL_LICENCE);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userRole, setUserRole] = useState<'centre_owner' | 'teacher'>('centre_owner');
-  const [userName, setUserName] = useState('Prof. Rajesh Sharma');
+  const [userName, setUserName] = useState('');
 
-  // Core Data Collections
+  // Core Data Collections (Strictly isolated by active centre ID)
   const [students, setStudents] = useState<Student[]>([]);
   const [batches, setBatches] = useState<Batch[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
@@ -93,18 +103,23 @@ export function AppContent() {
     return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
   }, []);
 
-  // Hydrate from Storage on Mount
+  // Hydrate organization-specific data from Storage
+  const rehydrateCentreData = useCallback((targetCentreId: string) => {
+    setStudents(AppStorage.getStudents(targetCentreId));
+    setBatches(AppStorage.getBatches(targetCentreId));
+    setTeachers(AppStorage.getTeachers(targetCentreId));
+    setAttendance(AppStorage.getAttendance(targetCentreId));
+    setPayments(AppStorage.getPayments(targetCentreId));
+    setReports(AppStorage.getReports(targetCentreId));
+  }, []);
+
+  // Hydrate from Storage on Mount and Screen Change
   useEffect(() => {
-    const loadedLicence = AppStorage.getLicence();
     const loadedCentre = AppStorage.getCentre();
-    setLicence(loadedLicence);
+    const loadedLicence = AppStorage.getLicence(loadedCentre.id);
     setCentre(loadedCentre);
-    setStudents(AppStorage.getStudents());
-    setBatches(AppStorage.getBatches());
-    setTeachers(AppStorage.getTeachers());
-    setAttendance(AppStorage.getAttendance());
-    setPayments(AppStorage.getPayments());
-    setReports(AppStorage.getReports());
+    setLicence(loadedLicence);
+    rehydrateCentreData(loadedCentre.id);
 
     // Android Hardware Back Button Handler
     try {
@@ -118,7 +133,7 @@ export function AppContent() {
     } catch {
       // Browser fallback
     }
-  }, [currentScreen, isAuthenticated]);
+  }, [currentScreen, isAuthenticated, rehydrateCentreData]);
 
   // Handle Splash Complete
   const handleSplashComplete = () => {
@@ -131,44 +146,45 @@ export function AppContent() {
     }
   };
 
-  // Handlers for Data Updates
+  // Handlers for Data Updates (Strictly multi-tenant scoped by centre.id)
   const handleAddStudent = (s: Student) => {
-    const updated = AppStorage.addStudent(s);
+    const updated = AppStorage.addStudent(s, centre.id);
     setStudents(updated);
   };
 
   const handleUpdateStudent = (s: Student) => {
-    const updated = AppStorage.updateStudent(s);
+    const updated = AppStorage.updateStudent(s, centre.id);
     setStudents(updated);
   };
 
   const handleDeleteStudent = (id: string) => {
-    const updated = AppStorage.deleteStudent(id);
+    const updated = AppStorage.deleteStudent(id, centre.id);
     setStudents(updated);
   };
 
   const handleSaveAttendance = (records: AttendanceRecord[]) => {
-    const updated = AppStorage.markAttendance(records);
+    const updated = AppStorage.markAttendance(records, centre.id);
     setAttendance(updated);
   };
 
   const handleRecordPayment = (payment: FeePayment) => {
-    const updated = AppStorage.addPayment(payment);
+    const updated = AppStorage.addPayment(payment, centre.id);
     setPayments(updated);
-    setStudents(AppStorage.getStudents()); // Reload updated balances
+    setStudents(AppStorage.getStudents(centre.id)); // Reload updated balances
   };
 
   const handleAddBatch = (batch: Batch) => {
-    const updated = AppStorage.addBatch(batch);
+    const updated = AppStorage.addBatch(batch, centre.id);
     setBatches(updated);
   };
 
   const handleAddReport = (report: ProgressReport) => {
-    const updated = AppStorage.addReport(report);
+    const updated = AppStorage.addReport(report, centre.id);
     setReports(updated);
   };
 
   const handleUpdateCentre = (updatedCentre: CentreProfile) => {
+    AppStorage.setCentre(updatedCentre);
     setCentre(updatedCentre);
   };
 
@@ -188,6 +204,7 @@ export function AppContent() {
         onActivated={(actLicence, actCentre) => {
           setLicence(actLicence);
           setCentre(actCentre);
+          rehydrateCentreData(actCentre.id);
           setIsAuthenticated(true);
           setCurrentScreen('dashboard');
         }}
@@ -200,8 +217,13 @@ export function AppContent() {
       <LoginScreen
         centre={centre}
         onLoginSuccess={(role, name) => {
+          const activeCentre = AppStorage.getCentre();
+          const activeLicence = AppStorage.getLicence(activeCentre.id);
+          setCentre(activeCentre);
+          setLicence(activeLicence);
           setUserRole(role);
           setUserName(name);
+          rehydrateCentreData(activeCentre.id);
           setIsAuthenticated(true);
           setCurrentScreen('dashboard');
         }}
@@ -215,7 +237,12 @@ export function AppContent() {
     return (
       <RegisterScreen
         onRegisterSuccess={(newCentre) => {
+          const activeLicence = AppStorage.getLicence(newCentre.id);
           setCentre(newCentre);
+          setLicence(activeLicence);
+          setUserRole('centre_owner');
+          setUserName(newCentre.owner_name);
+          rehydrateCentreData(newCentre.id);
           setIsAuthenticated(true);
           setCurrentScreen('dashboard');
         }}

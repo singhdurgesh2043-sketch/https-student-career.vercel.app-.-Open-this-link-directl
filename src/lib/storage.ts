@@ -1,5 +1,6 @@
-// STUDENT CAREER - Local & Cloud State Store
-// Provides persistent storage, realistic school demonstration data, and offline tolerance.
+// STUDENT CAREER - Local & Multi-Tenant State Store
+// Provides persistent storage, multi-organization isolation,
+// realistic school demonstration data, and offline tolerance.
 
 import {
   Student,
@@ -13,8 +14,9 @@ import {
 } from '../types';
 
 const STORAGE_KEYS = {
-  LICENCE: 'sc_licence_data',
-  CENTRE: 'sc_centre_profile',
+  CENTRES_REGISTRY: 'sc_centres_registry',
+  ACTIVE_CENTRE_ID: 'sc_active_centre_id',
+  LICENCES_REGISTRY: 'sc_licences_registry',
   STUDENTS: 'sc_students_list',
   BATCHES: 'sc_batches_list',
   TEACHERS: 'sc_teachers_list',
@@ -24,7 +26,7 @@ const STORAGE_KEYS = {
   APP_THEME: 'sc_app_theme',
 };
 
-// Initial Realistic Data for Demonstration
+// Initial Realistic Demonstration Data (Flagged explicitly as is_demo: true)
 export const INITIAL_CENTRE: CentreProfile = {
   id: 'centre-sc-101',
   code: 'SC-APEX-01',
@@ -39,7 +41,9 @@ export const INITIAL_CENTRE: CentreProfile = {
   state: 'Rajasthan',
   upi_id: 'rajesh.apex@okaxis',
   razorpay_key_id: 'rzp_test_school_demo',
-  created_at: new Date().toISOString(),
+  created_at: '2026-01-10T09:00:00Z',
+  is_demo: true,
+  status: 'active',
 };
 
 export const INITIAL_LICENCE: LicenceInfo = {
@@ -57,6 +61,7 @@ export const INITIAL_LICENCE: LicenceInfo = {
   device_count: 1,
   activated_at: '2026-01-10T10:00:00Z',
   device_uuid: 'ANDROID-DEV-SM-A546B',
+  is_demo: true,
 };
 
 export const INITIAL_TEACHERS: Teacher[] = [
@@ -69,6 +74,7 @@ export const INITIAL_TEACHERS: Teacher[] = [
     subjects: ['Mathematics', 'Statistics'],
     qualification: 'M.Sc. Mathematics, B.Ed (15 yrs exp)',
     salary_monthly: 45000,
+    is_demo: true,
   },
   {
     id: 'tch-2',
@@ -79,6 +85,7 @@ export const INITIAL_TEACHERS: Teacher[] = [
     subjects: ['Physics', 'Applied Science'],
     qualification: 'Ph.D. Physics (Ex-IIT Faculty)',
     salary_monthly: 40000,
+    is_demo: true,
   },
   {
     id: 'tch-3',
@@ -89,6 +96,7 @@ export const INITIAL_TEACHERS: Teacher[] = [
     subjects: ['Chemistry', 'Biology'],
     qualification: 'B.Tech Chemical, M.Sc Chemistry',
     salary_monthly: 38000,
+    is_demo: true,
   },
 ];
 
@@ -107,6 +115,7 @@ export const INITIAL_BATCHES: Batch[] = [
     room_number: 'Room 101',
     capacity: 35,
     student_count: 4,
+    is_demo: true,
   },
   {
     id: 'batch-2',
@@ -122,6 +131,7 @@ export const INITIAL_BATCHES: Batch[] = [
     room_number: 'Hall A',
     capacity: 40,
     student_count: 3,
+    is_demo: true,
   },
   {
     id: 'batch-3',
@@ -137,6 +147,7 @@ export const INITIAL_BATCHES: Batch[] = [
     room_number: 'Room 102',
     capacity: 25,
     student_count: 2,
+    is_demo: true,
   },
 ];
 
@@ -163,6 +174,7 @@ export const INITIAL_STUDENTS: Student[] = [
     is_active: true,
     total_paid: 2300,
     pending_balance: 0,
+    is_demo: true,
   },
   {
     id: 'std-2',
@@ -186,6 +198,7 @@ export const INITIAL_STUDENTS: Student[] = [
     is_active: true,
     total_paid: 0,
     pending_balance: 3500,
+    is_demo: true,
   },
   {
     id: 'std-3',
@@ -198,17 +211,18 @@ export const INITIAL_STUDENTS: Student[] = [
     admission_date: '2026-01-12',
     class: 'Class 10',
     course: 'State Board',
-    subjects: ['Mathematics', 'Science'],
+    subjects: ['Mathematics', 'Science', 'Social Studies'],
     assigned_batch_id: 'batch-1',
     assigned_batch_name: 'Class 10th - Boards Foundation',
     tuition_timing: '04:00 PM - 05:30 PM',
     monthly_fees: 2200,
     discount: 0,
-    payment_due_date: 5,
-    payment_status: 'overdue',
+    payment_due_date: 10,
+    payment_status: 'partial',
     is_active: true,
-    total_paid: 0,
-    pending_balance: 2200,
+    total_paid: 1000,
+    pending_balance: 1200,
+    is_demo: true,
   },
   {
     id: 'std-4',
@@ -216,166 +230,100 @@ export const INITIAL_STUDENTS: Student[] = [
     admission_no: 'SC-2026-004',
     name: 'Priya Mehta',
     father_name: 'Dinesh Mehta',
-    parent_contact: '9871239876',
-    parent_whatsapp: '9871239876',
+    parent_contact: '9873210987',
+    parent_whatsapp: '9873210987',
     admission_date: '2026-01-15',
     class: 'Class 12',
     course: 'NEET Foundation',
-    subjects: ['Physics', 'Chemistry'],
+    subjects: ['Physics', 'Chemistry', 'Biology'],
     assigned_batch_id: 'batch-2',
     assigned_batch_name: 'Class 12th - PCM Elite',
     tuition_timing: '05:45 PM - 07:30 PM',
-    monthly_fees: 3500,
-    discount: 0,
-    payment_due_date: 10,
-    payment_status: 'partial',
+    monthly_fees: 4500,
+    discount: 500,
+    payment_due_date: 5,
+    payment_status: 'paid',
     is_active: true,
-    total_paid: 2000,
-    pending_balance: 1500,
+    total_paid: 4000,
+    pending_balance: 0,
+    is_demo: true,
   },
   {
     id: 'std-5',
     centre_id: 'centre-sc-101',
     admission_no: 'SC-2026-005',
     name: 'Kabir Singh',
-    father_name: 'Harpreet Singh',
-    parent_contact: '9833451290',
-    parent_whatsapp: '9833451290',
-    admission_date: '2026-02-01',
+    father_name: 'Jaspreet Singh',
+    parent_contact: '9865432109',
+    parent_whatsapp: '9865432109',
+    admission_date: '2026-01-20',
     class: 'Class 9',
-    course: 'ICSE',
+    course: 'ICSE Foundation',
     subjects: ['Mathematics', 'Science'],
     assigned_batch_id: 'batch-3',
     assigned_batch_name: 'Class 9th - Junior Achievers',
     tuition_timing: '02:30 PM - 03:45 PM',
     monthly_fees: 2000,
     discount: 0,
-    payment_due_date: 5,
-    payment_status: 'paid',
-    is_active: true,
-    total_paid: 2000,
-    pending_balance: 0,
-  },
-  {
-    id: 'std-6',
-    centre_id: 'centre-sc-101',
-    admission_no: 'SC-2026-006',
-    name: 'Sneha Kulkarni',
-    father_name: 'Anand Kulkarni',
-    parent_contact: '9822114433',
-    parent_whatsapp: '9822114433',
-    admission_date: '2026-02-10',
-    class: 'Class 11',
-    course: 'JEE Mains & Advanced',
-    subjects: ['Physics', 'Chemistry', 'Mathematics'],
-    assigned_batch_id: 'batch-2',
-    assigned_batch_name: 'Class 12th - PCM Elite',
-    tuition_timing: '05:45 PM - 07:30 PM',
-    monthly_fees: 3800,
-    discount: 300,
-    payment_due_date: 7,
-    payment_status: 'paid',
-    is_active: true,
-    total_paid: 3500,
-    pending_balance: 0,
-  },
-  {
-    id: 'std-7',
-    centre_id: 'centre-sc-101',
-    admission_no: 'SC-2026-007',
-    name: 'Manav Gupta',
-    father_name: 'Pankaj Gupta',
-    parent_contact: '9819001122',
-    parent_whatsapp: '9819001122',
-    admission_date: '2026-02-15',
-    class: 'Class 10',
-    course: 'CBSE Regular',
-    subjects: ['Mathematics', 'Science', 'English'],
-    assigned_batch_id: 'batch-1',
-    assigned_batch_name: 'Class 10th - Boards Foundation',
-    tuition_timing: '04:00 PM - 05:30 PM',
-    monthly_fees: 2500,
-    discount: 0,
-    payment_due_date: 5,
-    payment_status: 'pending',
-    is_active: true,
-    total_paid: 0,
-    pending_balance: 2500,
-  },
-  {
-    id: 'std-8',
-    centre_id: 'centre-sc-101',
-    admission_no: 'SC-2026-008',
-    name: 'Diya Reddy',
-    father_name: 'Venkatesh Reddy',
-    parent_contact: '9848012345',
-    parent_whatsapp: '9848012345',
-    admission_date: '2026-02-18',
-    class: 'Class 12',
-    course: 'NEET Medical Target',
-    subjects: ['Physics', 'Chemistry', 'Biology'],
-    assigned_batch_id: 'batch-2',
-    assigned_batch_name: 'Class 12th - PCM Elite',
-    tuition_timing: '05:45 PM - 07:30 PM',
-    monthly_fees: 4200,
-    discount: 200,
     payment_due_date: 10,
     payment_status: 'overdue',
     is_active: true,
     total_paid: 0,
-    pending_balance: 4000,
+    pending_balance: 2000,
+    is_demo: true,
   },
 ];
 
 export const INITIAL_PAYMENTS: FeePayment[] = [
   {
-    id: 'pay-001',
-    receipt_no: 'REC-2026-001',
+    id: 'pay-01',
+    receipt_no: 'RCP-2026-001',
     centre_id: 'centre-sc-101',
     student_id: 'std-1',
     student_name: 'Aarav Patel',
     amount: 2300,
-    payment_date: '2026-11-04',
-    payment_month: 'November 2026',
+    payment_date: '2026-02-04',
+    payment_month: 'February 2026',
     payment_type: 'monthly_fee',
     payment_method: 'upi',
-    transaction_id: 'UPI-7749102941',
+    transaction_id: 'UPI982347291',
     status: 'success',
-    notes: 'Paid via GPay',
+    notes: 'Paid via Google Pay by parent',
     received_by: 'Prof. Rajesh Sharma',
+    is_demo: true,
   },
   {
-    id: 'pay-002',
-    receipt_no: 'REC-2026-002',
+    id: 'pay-02',
+    receipt_no: 'RCP-2026-002',
     centre_id: 'centre-sc-101',
     student_id: 'std-4',
     student_name: 'Priya Mehta',
-    amount: 2000,
-    payment_date: '2026-11-05',
-    payment_month: 'November 2026',
-    payment_type: 'partial',
+    amount: 4000,
+    payment_date: '2026-02-05',
+    payment_month: 'February 2026',
+    payment_type: 'monthly_fee',
     payment_method: 'cash',
-    transaction_id: 'CASH-REC',
     status: 'success',
-    notes: 'Partial payment. Balance ₹1500 to be cleared next week.',
-    received_by: 'Staff counter',
+    notes: 'Cash received at reception',
+    received_by: 'Prof. Rajesh Sharma',
+    is_demo: true,
   },
   {
-    id: 'pay-003',
-    receipt_no: 'REC-2026-003',
+    id: 'pay-03',
+    receipt_no: 'RCP-2026-003',
     centre_id: 'centre-sc-101',
-    student_id: 'std-5',
-    student_name: 'Kabir Singh',
-    amount: 2000,
-    payment_date: '2026-11-02',
-    payment_month: 'November 2026',
-    payment_type: 'monthly_fee',
-    payment_method: 'razorpay',
-    transaction_id: 'pay_P123DemoSchool',
-    razorpay_payment_id: 'pay_P123DemoSchool',
+    student_id: 'std-3',
+    student_name: 'Rohan Deshmukh',
+    amount: 1000,
+    payment_date: '2026-02-10',
+    payment_month: 'February 2026',
+    payment_type: 'partial',
+    payment_method: 'upi',
+    transaction_id: 'UPI102938475',
     status: 'success',
-    notes: 'Online fee payment through Razorpay gateway',
-    received_by: 'System Online',
+    notes: 'Part payment; balance Rs 1200 due next week',
+    received_by: 'Prof. Rajesh Sharma',
+    is_demo: true,
   },
 ];
 
@@ -389,7 +337,8 @@ export const INITIAL_ATTENDANCE: AttendanceRecord[] = [
     batch_name: 'Class 10th - Boards Foundation',
     date: new Date().toISOString().split('T')[0],
     status: 'present',
-    remarks: 'On time, active participation',
+    remarks: 'Active in class discussion',
+    is_demo: true,
   },
   {
     id: 'att-2',
@@ -401,6 +350,7 @@ export const INITIAL_ATTENDANCE: AttendanceRecord[] = [
     date: new Date().toISOString().split('T')[0],
     status: 'present',
     remarks: 'Submitted chemistry assignment',
+    is_demo: true,
   },
   {
     id: 'att-3',
@@ -412,6 +362,7 @@ export const INITIAL_ATTENDANCE: AttendanceRecord[] = [
     date: new Date().toISOString().split('T')[0],
     status: 'absent',
     remarks: 'Fever reported by parent',
+    is_demo: true,
   },
   {
     id: 'att-4',
@@ -423,6 +374,7 @@ export const INITIAL_ATTENDANCE: AttendanceRecord[] = [
     date: new Date().toISOString().split('T')[0],
     status: 'late',
     remarks: '15 mins late due to traffic',
+    is_demo: true,
   },
   {
     id: 'att-5',
@@ -434,6 +386,7 @@ export const INITIAL_ATTENDANCE: AttendanceRecord[] = [
     date: new Date().toISOString().split('T')[0],
     status: 'present',
     remarks: 'Completed algebra drill',
+    is_demo: true,
   },
 ];
 
@@ -456,6 +409,7 @@ export const INITIAL_REPORTS: ProgressReport[] = [
     teacher_comments: 'Aarav consistently solves advanced trigonometry equations and demonstrates sharp problem-solving skills.',
     improvement_areas: 'Needs to work on speed during 3-mark theory answers.',
     next_week_goals: 'Finish Chapter 7 Quadratic equations and complete test series 4.',
+    is_demo: true,
   },
   {
     id: 'rep-02',
@@ -475,6 +429,7 @@ export const INITIAL_REPORTS: ProgressReport[] = [
     teacher_comments: 'Outstanding in Chemistry Organic mechanisms. Requires slight practice in Calculus integration.',
     improvement_areas: 'Definite integrals and calculus word problems.',
     next_week_goals: 'Complete 30 previous year JEE problems in Integration.',
+    is_demo: true,
   },
 ];
 
@@ -498,79 +453,345 @@ function setItem<T>(key: string, value: T): void {
 }
 
 export const AppStorage = {
-  // Licence & Centre
-  getLicence: (): LicenceInfo | null => getItem<LicenceInfo | null>(STORAGE_KEYS.LICENCE, INITIAL_LICENCE),
-  setLicence: (licence: LicenceInfo | null) => setItem(STORAGE_KEYS.LICENCE, licence),
+  // ==========================================
+  // MULTI-TENANT ORGANISATION REGISTRY
+  // ==========================================
 
-  getCentre: (): CentreProfile => getItem<CentreProfile>(STORAGE_KEYS.CENTRE, INITIAL_CENTRE),
-  setCentre: (centre: CentreProfile) => setItem(STORAGE_KEYS.CENTRE, centre),
-
-  // Students
-  getStudents: (): Student[] => getItem<Student[]>(STORAGE_KEYS.STUDENTS, INITIAL_STUDENTS),
-  saveStudents: (students: Student[]) => setItem(STORAGE_KEYS.STUDENTS, students),
-  addStudent: (student: Student) => {
-    const list = AppStorage.getStudents();
-    const updated = [student, ...list];
-    setItem(STORAGE_KEYS.STUDENTS, updated);
-    return updated;
-  },
-  updateStudent: (student: Student) => {
-    const list = AppStorage.getStudents();
-    const updated = list.map((s) => (s.id === student.id ? student : s));
-    setItem(STORAGE_KEYS.STUDENTS, updated);
-    return updated;
-  },
-  deleteStudent: (studentId: string) => {
-    const list = AppStorage.getStudents();
-    const updated = list.filter((s) => s.id !== studentId);
-    setItem(STORAGE_KEYS.STUDENTS, updated);
-    return updated;
+  getAllCentres(): CentreProfile[] {
+    const registry = getItem<CentreProfile[]>(STORAGE_KEYS.CENTRES_REGISTRY, []);
+    if (!registry || registry.length === 0) {
+      const initial = [{ ...INITIAL_CENTRE, is_demo: true, status: 'active' as const }];
+      setItem(STORAGE_KEYS.CENTRES_REGISTRY, initial);
+      return initial;
+    }
+    return registry;
   },
 
-  // Batches
-  getBatches: (): Batch[] => getItem<Batch[]>(STORAGE_KEYS.BATCHES, INITIAL_BATCHES),
-  saveBatches: (batches: Batch[]) => setItem(STORAGE_KEYS.BATCHES, batches),
-  addBatch: (batch: Batch) => {
-    const list = AppStorage.getBatches();
-    const updated = [...list, batch];
+  getActiveCentreId(): string {
+    const activeId = localStorage.getItem(STORAGE_KEYS.ACTIVE_CENTRE_ID);
+    if (activeId) return activeId;
+    return INITIAL_CENTRE.id;
+  },
+
+  setActiveCentreId(centreId: string): void {
+    localStorage.setItem(STORAGE_KEYS.ACTIVE_CENTRE_ID, centreId);
+  },
+
+  switchCentre(centreId: string): void {
+    this.setActiveCentreId(centreId);
+  },
+
+  getCentre(centreId?: string): CentreProfile {
+    const targetId = centreId || this.getActiveCentreId();
+    const all = this.getAllCentres();
+    const matched = all.find((c) => c.id === targetId);
+    if (matched) return matched;
+    return all[0] || INITIAL_CENTRE;
+  },
+
+  setCentre(centre: CentreProfile): void {
+    this.setActiveCentreId(centre.id);
+    const all = this.getAllCentres();
+    const existingIndex = all.findIndex((c) => c.id === centre.id);
+    let updated: CentreProfile[];
+    if (existingIndex >= 0) {
+      updated = [...all];
+      updated[existingIndex] = centre;
+    } else {
+      updated = [centre, ...all];
+    }
+    setItem(STORAGE_KEYS.CENTRES_REGISTRY, updated);
+  },
+
+  /**
+   * Registers a completely new organization account.
+   * Creates an isolated profile without copying or pre-filling any other account's data.
+   */
+  registerNewCentre(
+    centreData: Omit<CentreProfile, 'id' | 'is_demo' | 'created_at' | 'status'>
+  ): CentreProfile {
+    const newId = `centre-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+    const newCentre: CentreProfile = {
+      ...centreData,
+      id: newId,
+      is_demo: false,
+      status: 'active',
+      created_at: new Date().toISOString(),
+    };
+
+    // Create unique license for this organization
+    const randomDigits = Math.floor(1000 + Math.random() * 9000);
+    const nameCode = newCentre.name.substring(0, 4).toUpperCase().replace(/\s+/g, '') || 'CENT';
+    const newLicence: LicenceInfo = {
+      id: `lic-${newId}`,
+      license_key: `SC-2026-${nameCode}-${randomDigits}`,
+      activation_code: `ACT-${Math.floor(1000 + Math.random() * 9000)}`,
+      centre_id: newId,
+      centre_name: newCentre.name,
+      owner_name: newCentre.owner_name,
+      owner_phone: newCentre.owner_phone,
+      plan_type: 'LIFETIME_ONE_TIME',
+      amount_paid: 14999,
+      status: 'active',
+      max_devices: 1,
+      device_count: 1,
+      activated_at: new Date().toISOString(),
+      device_uuid: `ANDROID-DEV-${Math.random().toString(36).substring(2, 10).toUpperCase()}`,
+      is_demo: false,
+    };
+
+    // Save centre to registry & set as active
+    this.setCentre(newCentre);
+
+    // Save licence
+    const licences = this.getAllLicences();
+    setItem(STORAGE_KEYS.LICENCES_REGISTRY, [newLicence, ...licences]);
+
+    return newCentre;
+  },
+
+  updateCentreStatus(centreId: string, status: 'active' | 'inactive'): void {
+    const all = this.getAllCentres();
+    const updated = all.map((c) => (c.id === centreId ? { ...c, status } : c));
+    setItem(STORAGE_KEYS.CENTRES_REGISTRY, updated);
+
+    // Update matching licence
+    const licences = this.getAllLicences();
+    const updatedLicences = licences.map((l) =>
+      l.centre_id === centreId ? { ...l, status } : l
+    );
+    setItem(STORAGE_KEYS.LICENCES_REGISTRY, updatedLicences);
+  },
+
+  // ==========================================
+  // LICENCES REGISTRY
+  // ==========================================
+
+  getAllLicences(): LicenceInfo[] {
+    const licences = getItem<LicenceInfo[]>(STORAGE_KEYS.LICENCES_REGISTRY, []);
+    if (!licences || licences.length === 0) {
+      const initial = [{ ...INITIAL_LICENCE, is_demo: true, status: 'active' as const }];
+      setItem(STORAGE_KEYS.LICENCES_REGISTRY, initial);
+      return initial;
+    }
+    return licences;
+  },
+
+  getLicence(centreId?: string): LicenceInfo | null {
+    const targetId = centreId || this.getActiveCentreId();
+    const all = this.getAllLicences();
+    return all.find((l) => l.centre_id === targetId) || null;
+  },
+
+  setLicence(licence: LicenceInfo | null): void {
+    if (!licence) return;
+    const all = this.getAllLicences();
+    const existingIdx = all.findIndex((l) => l.id === licence.id);
+    let updated: LicenceInfo[];
+    if (existingIdx >= 0) {
+      updated = [...all];
+      updated[existingIdx] = licence;
+    } else {
+      updated = [licence, ...all];
+    }
+    setItem(STORAGE_KEYS.LICENCES_REGISTRY, updated);
+  },
+
+  // ==========================================
+  // ISOLATED STUDENTS MANAGEMENT
+  // ==========================================
+
+  getAllRawStudents(): Student[] {
+    return getItem<Student[]>(STORAGE_KEYS.STUDENTS, INITIAL_STUDENTS);
+  },
+
+  getStudents(centreId?: string): Student[] {
+    const targetId = centreId || this.getActiveCentreId();
+    const all = this.getAllRawStudents();
+
+    // If querying demo centre and no items, return INITIAL_STUDENTS
+    if (targetId === INITIAL_CENTRE.id) {
+      const demoList = all.filter((s) => s.centre_id === INITIAL_CENTRE.id);
+      return demoList.length > 0 ? demoList : INITIAL_STUDENTS;
+    }
+
+    // STRICT ISOLATION: Real newly registered accounts return ONLY their own students!
+    return all.filter((s) => s.centre_id === targetId);
+  },
+
+  addStudent(student: Student, centreId?: string): Student[] {
+    const targetId = centreId || student.centre_id || this.getActiveCentreId();
+    const targetCentre = this.getCentre(targetId);
+
+    const fullStudent: Student = {
+      ...student,
+      centre_id: targetId,
+      is_demo: targetCentre.is_demo || false,
+    };
+
+    const all = this.getAllRawStudents();
+    const updated = [fullStudent, ...all];
+    setItem(STORAGE_KEYS.STUDENTS, updated);
+    return this.getStudents(targetId);
+  },
+
+  updateStudent(student: Student, centreId?: string): Student[] {
+    const targetId = centreId || student.centre_id || this.getActiveCentreId();
+    const all = this.getAllRawStudents();
+    const updated = all.map((s) => (s.id === student.id ? student : s));
+    setItem(STORAGE_KEYS.STUDENTS, updated);
+    return this.getStudents(targetId);
+  },
+
+  deleteStudent(studentId: string, centreId?: string): Student[] {
+    const targetId = centreId || this.getActiveCentreId();
+    const all = this.getAllRawStudents();
+    const updated = all.filter((s) => s.id !== studentId);
+    setItem(STORAGE_KEYS.STUDENTS, updated);
+    return this.getStudents(targetId);
+  },
+
+  // ==========================================
+  // ISOLATED BATCHES MANAGEMENT
+  // ==========================================
+
+  getAllRawBatches(): Batch[] {
+    return getItem<Batch[]>(STORAGE_KEYS.BATCHES, INITIAL_BATCHES);
+  },
+
+  getBatches(centreId?: string): Batch[] {
+    const targetId = centreId || this.getActiveCentreId();
+    const all = this.getAllRawBatches();
+    if (targetId === INITIAL_CENTRE.id) {
+      const demoList = all.filter((b) => b.centre_id === INITIAL_CENTRE.id);
+      return demoList.length > 0 ? demoList : INITIAL_BATCHES;
+    }
+    return all.filter((b) => b.centre_id === targetId);
+  },
+
+  addBatch(batch: Batch, centreId?: string): Batch[] {
+    const targetId = centreId || batch.centre_id || this.getActiveCentreId();
+    const targetCentre = this.getCentre(targetId);
+    const fullBatch: Batch = {
+      ...batch,
+      centre_id: targetId,
+      is_demo: targetCentre.is_demo || false,
+    };
+    const all = this.getAllRawBatches();
+    const updated = [...all, fullBatch];
     setItem(STORAGE_KEYS.BATCHES, updated);
-    return updated;
+    return this.getBatches(targetId);
   },
 
-  // Teachers
-  getTeachers: (): Teacher[] => getItem<Teacher[]>(STORAGE_KEYS.TEACHERS, INITIAL_TEACHERS),
-  saveTeachers: (teachers: Teacher[]) => setItem(STORAGE_KEYS.TEACHERS, teachers),
+  // ==========================================
+  // ISOLATED TEACHERS MANAGEMENT
+  // ==========================================
 
-  // Attendance
-  getAttendance: (): AttendanceRecord[] => getItem<AttendanceRecord[]>(STORAGE_KEYS.ATTENDANCE, INITIAL_ATTENDANCE),
-  saveAttendance: (records: AttendanceRecord[]) => setItem(STORAGE_KEYS.ATTENDANCE, records),
-  markAttendance: (newRecords: AttendanceRecord[]) => {
-    const current = AppStorage.getAttendance();
-    // Prevent duplicate attendance for same student and same date
-    const updated = [...current];
-    newRecords.forEach((record) => {
-      const existingIndex = updated.findIndex(
-        (r) => r.student_id === record.student_id && r.date === record.date
+  getAllRawTeachers(): Teacher[] {
+    return getItem<Teacher[]>(STORAGE_KEYS.TEACHERS, INITIAL_TEACHERS);
+  },
+
+  getTeachers(centreId?: string): Teacher[] {
+    const targetId = centreId || this.getActiveCentreId();
+    const all = this.getAllRawTeachers();
+    if (targetId === INITIAL_CENTRE.id) {
+      const demoList = all.filter((t) => t.centre_id === INITIAL_CENTRE.id);
+      return demoList.length > 0 ? demoList : INITIAL_TEACHERS;
+    }
+    return all.filter((t) => t.centre_id === targetId);
+  },
+
+  saveTeachers(teachers: Teacher[], centreId?: string): Teacher[] {
+    const targetId = centreId || this.getActiveCentreId();
+    const all = this.getAllRawTeachers();
+    const otherCentres = all.filter((t) => t.centre_id !== targetId);
+    const updated = [...otherCentres, ...teachers];
+    setItem(STORAGE_KEYS.TEACHERS, updated);
+    return teachers;
+  },
+
+  // ==========================================
+  // ISOLATED ATTENDANCE MANAGEMENT
+  // ==========================================
+
+  getAllRawAttendance(): AttendanceRecord[] {
+    return getItem<AttendanceRecord[]>(STORAGE_KEYS.ATTENDANCE, INITIAL_ATTENDANCE);
+  },
+
+  getAttendance(centreId?: string): AttendanceRecord[] {
+    const targetId = centreId || this.getActiveCentreId();
+    const all = this.getAllRawAttendance();
+    if (targetId === INITIAL_CENTRE.id) {
+      const demoList = all.filter((a) => a.centre_id === INITIAL_CENTRE.id);
+      return demoList.length > 0 ? demoList : INITIAL_ATTENDANCE;
+    }
+    return all.filter((a) => a.centre_id === targetId);
+  },
+
+  markAttendance(newRecords: AttendanceRecord[], centreId?: string): AttendanceRecord[] {
+    const targetId = centreId || this.getActiveCentreId();
+    const all = this.getAllRawAttendance();
+    const targetCentre = this.getCentre(targetId);
+
+    const taggedRecords = newRecords.map((r) => ({
+      ...r,
+      centre_id: targetId,
+      is_demo: targetCentre.is_demo || false,
+    }));
+
+    const updated = [...all];
+    taggedRecords.forEach((record) => {
+      const existingIdx = updated.findIndex(
+        (r) =>
+          r.centre_id === targetId &&
+          r.student_id === record.student_id &&
+          r.date === record.date
       );
-      if (existingIndex >= 0) {
-        updated[existingIndex] = record;
+      if (existingIdx >= 0) {
+        updated[existingIdx] = record;
       } else {
         updated.push(record);
       }
     });
+
     setItem(STORAGE_KEYS.ATTENDANCE, updated);
-    return updated;
+    return this.getAttendance(targetId);
   },
 
-  // Payments
-  getPayments: (): FeePayment[] => getItem<FeePayment[]>(STORAGE_KEYS.PAYMENTS, INITIAL_PAYMENTS),
-  addPayment: (payment: FeePayment) => {
-    const list = AppStorage.getPayments();
-    const updated = [payment, ...list];
+  // ==========================================
+  // ISOLATED FEES & PAYMENTS MANAGEMENT
+  // ==========================================
+
+  getAllRawPayments(): FeePayment[] {
+    return getItem<FeePayment[]>(STORAGE_KEYS.PAYMENTS, INITIAL_PAYMENTS);
+  },
+
+  getPayments(centreId?: string): FeePayment[] {
+    const targetId = centreId || this.getActiveCentreId();
+    const all = this.getAllRawPayments();
+    if (targetId === INITIAL_CENTRE.id) {
+      const demoList = all.filter((p) => p.centre_id === INITIAL_CENTRE.id);
+      return demoList.length > 0 ? demoList : INITIAL_PAYMENTS;
+    }
+    return all.filter((p) => p.centre_id === targetId);
+  },
+
+  addPayment(payment: FeePayment, centreId?: string): FeePayment[] {
+    const targetId = centreId || payment.centre_id || this.getActiveCentreId();
+    const targetCentre = this.getCentre(targetId);
+
+    const fullPayment: FeePayment = {
+      ...payment,
+      centre_id: targetId,
+      is_demo: targetCentre.is_demo || false,
+    };
+
+    const all = this.getAllRawPayments();
+    const updated = [fullPayment, ...all];
     setItem(STORAGE_KEYS.PAYMENTS, updated);
 
-    // Automatically update student's fee status
-    const students = AppStorage.getStudents();
+    // Update corresponding student balance
+    const students = this.getStudents(targetId);
     const student = students.find((s) => s.id === payment.student_id);
     if (student) {
       const totalPaid = (student.total_paid || 0) + payment.amount;
@@ -578,35 +799,123 @@ export const AppStorage = {
       const pendingBalance = Math.max(0, effectiveTotal - totalPaid);
       const newStatus = pendingBalance === 0 ? 'paid' : totalPaid > 0 ? 'partial' : 'pending';
 
-      AppStorage.updateStudent({
-        ...student,
-        total_paid: totalPaid,
-        pending_balance: pendingBalance,
-        payment_status: newStatus,
-      });
+      this.updateStudent(
+        {
+          ...student,
+          total_paid: totalPaid,
+          pending_balance: pendingBalance,
+          payment_status: newStatus,
+        },
+        targetId
+      );
     }
 
-    return updated;
+    return this.getPayments(targetId);
   },
 
-  // Progress Reports
-  getReports: (): ProgressReport[] => getItem<ProgressReport[]>(STORAGE_KEYS.REPORTS, INITIAL_REPORTS),
-  addReport: (report: ProgressReport) => {
-    const list = AppStorage.getReports();
-    const updated = [report, ...list];
+  // ==========================================
+  // ISOLATED PROGRESS REPORTS
+  // ==========================================
+
+  getAllRawReports(): ProgressReport[] {
+    return getItem<ProgressReport[]>(STORAGE_KEYS.REPORTS, INITIAL_REPORTS);
+  },
+
+  getReports(centreId?: string): ProgressReport[] {
+    const targetId = centreId || this.getActiveCentreId();
+    const all = this.getAllRawReports();
+    if (targetId === INITIAL_CENTRE.id) {
+      const demoList = all.filter((r) => r.centre_id === INITIAL_CENTRE.id);
+      return demoList.length > 0 ? demoList : INITIAL_REPORTS;
+    }
+    return all.filter((r) => r.centre_id === targetId);
+  },
+
+  addReport(report: ProgressReport, centreId?: string): ProgressReport[] {
+    const targetId = centreId || report.centre_id || this.getActiveCentreId();
+    const targetCentre = this.getCentre(targetId);
+    const fullReport: ProgressReport = {
+      ...report,
+      centre_id: targetId,
+      is_demo: targetCentre.is_demo || false,
+    };
+    const all = this.getAllRawReports();
+    const updated = [fullReport, ...all];
     setItem(STORAGE_KEYS.REPORTS, updated);
-    return updated;
+    return this.getReports(targetId);
   },
 
-  // Reset to initial demo state
-  resetToDemo: () => {
-    setItem(STORAGE_KEYS.CENTRE, INITIAL_CENTRE);
-    setItem(STORAGE_KEYS.LICENCE, INITIAL_LICENCE);
-    setItem(STORAGE_KEYS.STUDENTS, INITIAL_STUDENTS);
-    setItem(STORAGE_KEYS.BATCHES, INITIAL_BATCHES);
-    setItem(STORAGE_KEYS.TEACHERS, INITIAL_TEACHERS);
-    setItem(STORAGE_KEYS.ATTENDANCE, INITIAL_ATTENDANCE);
-    setItem(STORAGE_KEYS.PAYMENTS, INITIAL_PAYMENTS);
-    setItem(STORAGE_KEYS.REPORTS, INITIAL_REPORTS);
+  // ==========================================
+  // SUPER ADMIN AGGREGATIONS & REAL STATS
+  // ==========================================
+
+  getSuperAdminStats() {
+    const allCentres = this.getAllCentres();
+    const realCentres = allCentres.filter((c) => !c.is_demo);
+    const demoCentres = allCentres.filter((c) => c.is_demo);
+
+    const allLicences = this.getAllLicences();
+    const activeLicences = allLicences.filter((l) => l.status === 'active');
+    const inactiveLicences = allLicences.filter((l) => l.status === 'inactive');
+    const totalSales = allLicences.reduce((acc, l) => acc + (l.amount_paid || 0), 0);
+
+    const allStudents = this.getAllRawStudents();
+    const realStudents = allStudents.filter((s) => !s.is_demo);
+
+    const allTeachers = this.getAllRawTeachers();
+    const realTeachers = allTeachers.filter((t) => !t.is_demo);
+
+    const allPayments = this.getAllRawPayments();
+    const realPayments = allPayments.filter((p) => !p.is_demo);
+
+    const realRevenue = realPayments.reduce((acc, p) => acc + (p.amount || 0), 0);
+    const demoRevenue = allPayments
+      .filter((p) => p.is_demo)
+      .reduce((acc, p) => acc + (p.amount || 0), 0);
+
+    return {
+      totalOrganizations: allCentres.length,
+      realCentresCount: realCentres.length,
+      demoCentresCount: demoCentres.length,
+      realOrganizationsCount: realCentres.length,
+      demoOrganizationsCount: demoCentres.length,
+      activeRealCount: realCentres.filter((c) => c.status === 'active').length,
+      inactiveRealCount: realCentres.filter((c) => c.status === 'inactive').length,
+      activeLicencesCount: activeLicences.length,
+      inactiveLicencesCount: inactiveLicences.length,
+      totalSalesRevenue: totalSales,
+      realStudentsCount: realStudents.length,
+      realTeachersCount: realTeachers.length,
+      realRevenueTotal: realRevenue,
+      demoRevenueTotal: demoRevenue,
+      realCentresList: realCentres,
+      demoCentresList: demoCentres,
+    };
+  },
+
+  /**
+   * Resets demo data while preserving legitimate real accounts
+   */
+  resetToDemo(): void {
+    // Keep real registered centres
+    const allCentres = this.getAllCentres();
+    const realCentres = allCentres.filter((c) => !c.is_demo);
+    setItem(STORAGE_KEYS.CENTRES_REGISTRY, [
+      { ...INITIAL_CENTRE, is_demo: true, status: 'active' },
+      ...realCentres,
+    ]);
+
+    // Keep real students, replace demo students with initial
+    const allStudents = this.getAllRawStudents();
+    const realStudents = allStudents.filter((s) => !s.is_demo);
+    setItem(STORAGE_KEYS.STUDENTS, [...realStudents, ...INITIAL_STUDENTS]);
+
+    // Keep real payments
+    const allPayments = this.getAllRawPayments();
+    const realPayments = allPayments.filter((p) => !p.is_demo);
+    setItem(STORAGE_KEYS.PAYMENTS, [...realPayments, ...INITIAL_PAYMENTS]);
+
+    // Reset active centre to Demo Centre
+    this.setActiveCentreId(INITIAL_CENTRE.id);
   },
 };
