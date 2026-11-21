@@ -17,6 +17,15 @@ android/.gradle
 android/build
 android/app/build
 
+# Android Keystore and Security Credentials
+*.jks
+*.keystore
+keystore.properties
+release.keystore
+*.p8
+*.p12
+*.key
+
 # Editor & OS files
 .vscode/*
 !.vscode/extensions.json
