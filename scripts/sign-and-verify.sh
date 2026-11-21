@@ -78,7 +78,48 @@ echo "=== 7. VERIFYING PACKAGE ID ==="
 "$AAPT" dump badging dist-android/StudentCareerApp-release-signed.apk | grep "package: name=" > dist-android/package_badging.txt || true
 cat dist-android/package_badging.txt
 
-echo "=== 8. PACKAGING PERMANENT KEYSTORE BACKUP ==="
+echo "=== 8. COMPUTING INTEGRITY CHECKSUMS ==="
+APK_SHA256=$(sha256sum dist-android/StudentCareerApp-release-signed.apk | awk '{print $1}')
+AAB_SHA256=$(sha256sum dist-android/StudentCareerApp-release-signed.aab | awk '{print $1}')
+APK_SIZE=$(wc -c < dist-android/StudentCareerApp-release-signed.apk | tr -d ' ')
+
+echo "Signed APK SHA-256: $APK_SHA256"
+echo "Signed AAB SHA-256: $AAB_SHA256"
+echo "Signed APK Size: $APK_SIZE bytes"
+
+# Copy to canonical release filenames
+cp dist-android/StudentCareerApp-release-signed.apk dist-android/StudentCareerApp-release.apk
+cp dist-android/StudentCareerApp-release-signed.aab dist-android/StudentCareerApp-release.aab
+
+V_NAME="${VERSION_NAME:-1.0.0}"
+V_CODE="${VERSION_CODE:-1}"
+IS_MANDATORY_VAL="${IS_MANDATORY:-false}"
+
+echo "=== 9. GENERATING UPDATE MANIFEST (version.json) ==="
+cat <<EOF > dist-android/version.json
+{
+  "versionCode": $V_CODE,
+  "versionName": "$V_NAME",
+  "minSupportedVersionCode": 1,
+  "isMandatory": $IS_MANDATORY_VAL,
+  "publishedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "apkUrl": "https://github.com/singhdurgesh2043-sketch/https-student-career.vercel.app-.-Open-this-link-directl/releases/download/v${V_NAME}/StudentCareerApp-release.apk",
+  "apkSha256": "$APK_SHA256",
+  "fileSizeBytes": $APK_SIZE,
+  "releaseTitle": "Student Career App v${V_NAME}",
+  "releaseNotes": [
+    "Automatic In-App Auto Update System Enabled",
+    "Complete Student Management Module (Add, Edit, Delete, Search)",
+    "Tuition Batch Scheduling & Daily Attendance Registers",
+    "Fee Receipts with PDF Download & WhatsApp Share",
+    "Progressive Web App (PWA) Offline Capability"
+  ]
+}
+EOF
+
+cat dist-android/version.json
+
+echo "=== 10. PACKAGING PERMANENT KEYSTORE BACKUP ==="
 {
   echo "Student Career App - Permanent Signing Identity"
   echo "==============================================="
@@ -87,15 +128,21 @@ echo "=== 8. PACKAGING PERMANENT KEYSTORE BACKUP ==="
   echo "Store Password: $STORE_PASS"
   echo "Validity: 10,000 Days"
   echo "Signature Schemes: v1 (JAR), v2 (Full APK), v3 (Android 9+ Key Rotation)"
+  echo "APK SHA-256: $APK_SHA256"
 } > dist-android/KEYSTORE_INFO.txt
 
 cp release.keystore dist-android/studentcareer-release.keystore
 zip -j dist-android/StudentCareerApp-Permanent-Keystore.zip dist-android/studentcareer-release.keystore dist-android/KEYSTORE_INFO.txt
 
-echo "=== 9. WRITING STEP SUMMARY ==="
+echo "=== 11. WRITING STEP SUMMARY ==="
 if [ -n "$GITHUB_STEP_SUMMARY" ]; then
   {
-    echo "## 🛡️ Android Release Signing & Integrity Report"
+    echo "## 🛡️ Android Release Signing & In-App Update Report"
+    echo ""
+    echo "- **Version Name:** \`v${V_NAME}\`"
+    echo "- **Version Code:** \`${V_CODE}\`"
+    echo "- **Signed APK SHA-256:** \`${APK_SHA256}\`"
+    echo "- **Signed APK File Size:** \`${APK_SIZE} bytes\`"
     echo ""
     echo "### 1. Package Verification"
     echo "\`\`\`"

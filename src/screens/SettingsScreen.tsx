@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Settings,
   Building,
@@ -15,9 +15,22 @@ import {
   Moon,
   Sun,
   QrCode,
+  Sparkles,
+  Download,
+  AlertCircle,
+  ArrowUpCircle,
+  Clock,
 } from 'lucide-react';
 import { CentreProfile, LicenceInfo, ActiveScreen } from '../types';
 import { AppStorage } from '../lib/storage';
+import {
+  checkForAppUpdate,
+  getLastUpdateCheckTime,
+  getInstalledAppVersion,
+  UpdateManifest,
+} from '../services/updateService';
+import { CURRENT_APP_VERSION, AppVersionInfo } from '../config/appVersion';
+import { BRANDING } from '../config/branding';
 
 interface SettingsScreenProps {
   centre: CentreProfile;
@@ -25,6 +38,7 @@ interface SettingsScreenProps {
   onUpdateCentre: (updated: CentreProfile) => void;
   onNavigate: (screen: ActiveScreen) => void;
   onLogout: () => void;
+  onTriggerUpdateModal?: (manifest: UpdateManifest, isMandatory: boolean) => void;
 }
 
 export const SettingsScreen: React.FC<SettingsScreenProps> = ({
@@ -33,6 +47,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   onUpdateCentre,
   onNavigate,
   onLogout,
+  onTriggerUpdateModal,
 }) => {
   const [centreName, setCentreName] = useState(centre.name);
   const [tagline, setTagline] = useState(centre.tagline || '');
@@ -41,6 +56,66 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const [upiId, setUpiId] = useState(centre.upi_id || '');
   const [address, setAddress] = useState(centre.address || '');
   const [savedSuccess, setSavedSuccess] = useState(false);
+
+  // In-App Update States
+  const [appVersion, setAppVersion] = useState<AppVersionInfo>(CURRENT_APP_VERSION);
+  const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
+  const [updateStatus, setUpdateStatus] = useState<{
+    message: string;
+    type: 'success' | 'info' | 'error';
+  } | null>(null);
+  const [lastChecked, setLastChecked] = useState<string | null>(getLastUpdateCheckTime());
+
+  useEffect(() => {
+    getInstalledAppVersion().then(v => setAppVersion(v));
+  }, []);
+
+  const handleManualCheckUpdates = async () => {
+    setIsCheckingUpdate(true);
+    setUpdateStatus(null);
+
+    try {
+      const res = await checkForAppUpdate({ force: true });
+      setLastChecked(new Date().toISOString());
+
+      if (res.hasUpdate && res.latestManifest) {
+        setUpdateStatus({
+          message: `New version v${res.latestManifest.versionName} (Build #${res.latestManifest.versionCode}) is available!`,
+          type: 'info',
+        });
+        if (onTriggerUpdateModal) {
+          onTriggerUpdateModal(res.latestManifest, res.isMandatory);
+        }
+      } else if (res.error) {
+        setUpdateStatus({
+          message: `Update check failed: ${res.error}`,
+          type: 'error',
+        });
+      } else {
+        setUpdateStatus({
+          message: `Student Career App is up to date (v${res.installedVersion.versionName})!`,
+          type: 'success',
+        });
+      }
+    } catch (err: any) {
+      setUpdateStatus({
+        message: err.message || 'Could not connect to update service.',
+        type: 'error',
+      });
+    } finally {
+      setIsCheckingUpdate(false);
+    }
+  };
+
+  const formatCheckTime = (isoString: string | null) => {
+    if (!isoString) return 'Not checked yet';
+    try {
+      const date = new Date(isoString);
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' on ' + date.toLocaleDateString();
+    } catch {
+      return isoString;
+    }
+  };
 
   const handleSaveProfile = (e: React.FormEvent) => {
     e.preventDefault();
@@ -135,6 +210,83 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           </div>
         </div>
         <ChevronRight className="w-5 h-5 text-blue-700" />
+      </div>
+
+      {/* In-App Auto Updates & Versioning */}
+      <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm space-y-4">
+        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center">
+              <ArrowUpCircle className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                App Updates & Releases
+              </h3>
+              <p className="text-[10px] text-slate-500">
+                Official In-App Auto Update System
+              </p>
+            </div>
+          </div>
+          <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+            <ShieldCheck className="w-3 h-3 text-emerald-600" />
+            <span>v{appVersion.versionName}</span>
+          </span>
+        </div>
+
+        <div className="space-y-2 text-xs text-slate-600 bg-slate-50 p-3 rounded-2xl border border-slate-100">
+          <div className="flex justify-between items-center py-0.5">
+            <span className="text-slate-500">Installed Version:</span>
+            <span className="font-bold text-slate-800">
+              v{appVersion.versionName} <span className="text-[10px] text-slate-400 font-mono">(Build #{appVersion.versionCode})</span>
+            </span>
+          </div>
+          <div className="flex justify-between items-center py-0.5">
+            <span className="text-slate-500">Package Identity:</span>
+            <span className="font-mono text-slate-700 text-[11px] font-semibold">{appVersion.packageName}</span>
+          </div>
+          <div className="flex justify-between items-center py-0.5">
+            <span className="text-slate-500">Last Checked:</span>
+            <span className="text-slate-600 font-medium text-[11px] flex items-center gap-1">
+              <Clock className="w-3 h-3 text-slate-400" />
+              <span>{formatCheckTime(lastChecked)}</span>
+            </span>
+          </div>
+        </div>
+
+        {/* Status Alert Banner if checked */}
+        {updateStatus && (
+          <div
+            className={`p-3 rounded-2xl text-xs flex items-start gap-2 ${
+              updateStatus.type === 'success'
+                ? 'bg-emerald-50 text-emerald-900 border border-emerald-200'
+                : updateStatus.type === 'info'
+                ? 'bg-blue-50 text-blue-900 border border-blue-200'
+                : 'bg-rose-50 text-rose-900 border border-rose-200'
+            }`}
+          >
+            {updateStatus.type === 'success' ? (
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+            ) : updateStatus.type === 'info' ? (
+              <Sparkles className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+            ) : (
+              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+            )}
+            <div className="leading-relaxed font-medium">
+              {updateStatus.message}
+            </div>
+          </div>
+        )}
+
+        <button
+          type="button"
+          onClick={handleManualCheckUpdates}
+          disabled={isCheckingUpdate}
+          className="w-full py-2.5 bg-blue-700 hover:bg-blue-800 active:scale-[0.98] text-white font-bold rounded-2xl text-xs flex items-center justify-center gap-2 shadow-xs transition disabled:opacity-60"
+        >
+          <RefreshCw className={`w-3.5 h-3.5 ${isCheckingUpdate ? 'animate-spin' : ''}`} />
+          <span>{isCheckingUpdate ? 'Checking Update Server...' : 'Check for Updates'}</span>
+        </button>
       </div>
 
       {/* Super Admin Direct Gateway */}

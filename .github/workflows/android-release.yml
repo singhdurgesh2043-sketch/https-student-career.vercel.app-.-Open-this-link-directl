@@ -1,0 +1,126 @@
+name: Publish Android Release & Update Manifest
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_name:
+        description: 'Release Semantic Version (e.g. 1.1.0)'
+        required: true
+        default: '1.1.0'
+      version_code:
+        description: 'Android versionCode (integer, e.g. 2)'
+        required: true
+        default: '2'
+      is_mandatory:
+        description: 'Is this a mandatory update? (true/false)'
+        required: true
+        type: boolean
+        default: false
+      release_title:
+        description: 'Public Release Title'
+        required: true
+        default: 'Student Career App v1.1.0'
+      release_notes:
+        description: 'Release Notes (bullet points)'
+        required: true
+        default: 'In-App Auto Update System\nPerformance & Security Improvements'
+
+jobs:
+  publish-release:
+    name: Build, Sign, Verify & Publish Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+
+    steps:
+      - name: 1. Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: 2. Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: 3. Set up Java JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: 4. Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-36 build-tools;36.0.0'
+
+      - name: 5. Apply Release Version to Android Build
+        run: |
+          sed -i "s/versionCode [0-9]*/versionCode ${{ inputs.version_code }}/" android/app/build.gradle
+          sed -i "s/versionName \"[^\"]*\"/versionName \"${{ inputs.version_name }}\"/" android/app/build.gradle
+          sed -i "s/versionCode: [0-9]*/versionCode: ${{ inputs.version_code }}/" src/config/appVersion.ts
+          sed -i "s/versionName: '[^']*'/versionName: '${{ inputs.version_name }}'/" src/config/appVersion.ts
+          git diff android/app/build.gradle src/config/appVersion.ts
+
+      - name: 6. Install Node Dependencies
+        run: npm ci
+
+      - name: 7. Build Web Production Bundle
+        run: npm run build
+
+      - name: 8. Sync Capacitor Android
+        run: npx cap sync android
+
+      - name: 9. Grant Execution Permission
+        run: |
+          chmod +x android/gradlew
+          chmod +x scripts/sign-and-verify.sh
+
+      - name: 10. Compile Release Binaries (Gradle)
+        working-directory: android
+        run: |
+          ./gradlew assembleRelease --stacktrace
+          ./gradlew bundleRelease --stacktrace
+
+      - name: 11. Execute Release Signing & Strict Verification
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          VERSION_NAME: ${{ inputs.version_name }}
+          VERSION_CODE: ${{ inputs.version_code }}
+          IS_MANDATORY: ${{ inputs.is_mandatory }}
+        run: bash scripts/sign-and-verify.sh
+
+      - name: 12. Create Permanent GitHub Release & Publish Assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "v${{ inputs.version_name }}"
+          name: "${{ inputs.release_title }}"
+          body: |
+            ## ${{ inputs.release_title }}
+            
+            ### 📝 What's New:
+            ${{ inputs.release_notes }}
+            
+            ### 📦 Release Details:
+            - **Application ID:** `com.studentcareer.app`
+            - **Version Name:** `v${{ inputs.version_name }}`
+            - **Version Code:** `${{ inputs.version_code }}`
+            - **Mandatory Update:** `${{ inputs.is_mandatory }}`
+            - **Signed APK:** `StudentCareerApp-release.apk`
+            - **Play Store Bundle:** `StudentCareerApp-release.aab`
+            
+            ### 🛡️ Security Verification:
+            Cryptographically signed with RSA 2048-bit key and verified via `apksigner` (Schemes v1, v2, v3).
+          files: |
+            dist-android/StudentCareerApp-release.apk
+            dist-android/StudentCareerApp-release.aab
+            dist-android/version.json
+            dist-android/StudentCareerApp-Permanent-Keystore.zip
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

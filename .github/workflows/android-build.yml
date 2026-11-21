@@ -94,3 +94,12 @@ jobs:
           path: dist-android/StudentCareerApp-Permanent-Keystore.zip
           if-no-files-found: error
           retention-days: 60
+
+      - name: 14. Upload Update Manifest Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: StudentCareerApp-Update-Manifest
+          path: dist-android/version.json
+          if-no-files-found: error
+          retention-days: 60
+          retention-days: 60

@@ -1,0 +1,19 @@
+{
+  "versionCode": 1,
+  "versionName": "1.0.0",
+  "minSupportedVersionCode": 1,
+  "isMandatory": false,
+  "publishedAt": "2026-11-21T09:00:00Z",
+  "apkUrl": "https://github.com/singhdurgesh2043-sketch/https-student-career.vercel.app-.-Open-this-link-directl/releases/latest/download/StudentCareerApp-release.apk",
+  "apkSha256": "47a988d4474771960249c5ebfa5566f7f6a788876c43315a676ebf6727289ad9",
+  "fileSizeBytes": 3314520,
+  "releaseTitle": "Student Career App v1.0.0 Initial Release",
+  "releaseNotes": [
+    "Complete Student Management Module with Search, Edit & Delete",
+    "Tuition Batch & Timing Scheduling",
+    "Attendance Tracking & Daily Registers",
+    "Fee Receipts with PDF Download & WhatsApp Share",
+    "Progressive Web App (PWA) Offline Capability",
+    "Native Android Capacitor 8 Build with In-App Auto Update System"
+  ]
+}

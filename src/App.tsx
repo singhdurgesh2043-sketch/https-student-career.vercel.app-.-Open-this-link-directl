@@ -18,6 +18,9 @@ import { ReportsScreen } from './screens/ReportsScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
 import { SuperAdminScreen } from './screens/SuperAdminScreen';
 import { DownloadAppScreen } from './screens/DownloadAppScreen';
+import { UpdateModal } from './components/common/UpdateModal';
+import { checkForAppUpdate, UpdateManifest } from './services/updateService';
+import { CURRENT_APP_VERSION, AppVersionInfo } from './config/appVersion';
 
 export function AppContent() {
   const [currentScreen, setCurrentScreen] = useState<ActiveScreen>('splash');
@@ -35,6 +38,50 @@ export function AppContent() {
   const [payments, setPayments] = useState<FeePayment[]>([]);
   const [reports, setReports] = useState<ProgressReport[]>([]);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+
+  // In-App Auto Update Modal State
+  const [updateModalData, setUpdateModalData] = useState<{
+    isOpen: boolean;
+    manifest: UpdateManifest | null;
+    installedVersion: AppVersionInfo;
+    isMandatory: boolean;
+  }>({
+    isOpen: false,
+    manifest: null,
+    installedVersion: CURRENT_APP_VERSION,
+    isMandatory: false,
+  });
+
+  // Background Automatic Update Check on App Mount
+  useEffect(() => {
+    const runAutoUpdateCheck = async () => {
+      try {
+        const res = await checkForAppUpdate({ force: false });
+        if (res.hasUpdate && res.latestManifest) {
+          setUpdateModalData({
+            isOpen: true,
+            manifest: res.latestManifest,
+            installedVersion: res.installedVersion,
+            isMandatory: res.isMandatory,
+          });
+        }
+      } catch (e) {
+        console.warn('Background auto update check error (safe fallback):', e);
+      }
+    };
+
+    const timer = setTimeout(runAutoUpdateCheck, 2500);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const handleTriggerUpdateModal = (manifest: UpdateManifest, isMandatory: boolean) => {
+    setUpdateModalData({
+      isOpen: true,
+      manifest,
+      installedVersion: CURRENT_APP_VERSION,
+      isMandatory,
+    });
+  };
 
   // Capture PWA Install Prompt
   useEffect(() => {
@@ -255,6 +302,7 @@ export function AppContent() {
             onUpdateCentre={handleUpdateCentre}
             onNavigate={(screen) => setCurrentScreen(screen)}
             onLogout={handleLogout}
+            onTriggerUpdateModal={handleTriggerUpdateModal}
           />
         )}
 
@@ -276,6 +324,18 @@ export function AppContent() {
         <BottomNav
           currentScreen={currentScreen}
           onNavigate={(screen) => setCurrentScreen(screen)}
+        />
+      )}
+
+      {/* Global In-App Update Dialog */}
+      {updateModalData.isOpen && updateModalData.manifest && (
+        <UpdateModal
+          manifest={updateModalData.manifest}
+          installedVersion={updateModalData.installedVersion}
+          isMandatory={updateModalData.isMandatory}
+          onClose={() =>
+            setUpdateModalData((prev) => ({ ...prev, isOpen: false }))
+          }
         />
       )}
     </div>
