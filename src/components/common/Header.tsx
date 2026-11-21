@@ -1,5 +1,5 @@
 import React from 'react';
-import { Bell, GraduationCap, ShieldCheck, User } from 'lucide-react';
+import { Bell, GraduationCap, ShieldCheck, User, QrCode } from 'lucide-react';
 import { CentreProfile, ActiveScreen } from '../../types';
 
 interface HeaderProps {
@@ -27,6 +27,8 @@ export const Header: React.FC<HeaderProps> = ({ centre, currentScreen, onNavigat
         return 'Centre Settings';
       case 'superadmin':
         return 'Super Admin Portal';
+      case 'download':
+        return 'Download App & QR';
       default:
         return 'STUDENT CAREER';
     }
@@ -41,17 +43,25 @@ export const Header: React.FC<HeaderProps> = ({ centre, currentScreen, onNavigat
             <GraduationCap className="w-6 h-6 text-blue-200" />
           </div>
           <div>
-            <h1 className="text-base font-bold tracking-tight text-white leading-tight truncate max-w-[200px]">
+            <h1 className="text-base font-bold tracking-tight text-white leading-tight truncate max-w-[180px]">
               {getScreenTitle()}
             </h1>
-            <p className="text-[11px] text-blue-200/80 font-medium truncate max-w-[200px]">
+            <p className="text-[11px] text-blue-200/80 font-medium truncate max-w-[180px]">
               {centre.code || 'ONE-TIME LICENSE'} • {centre.city || 'India'}
             </p>
           </div>
         </div>
 
         {/* Quick action buttons */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => onNavigate('download')}
+            title="Download App & QR Code"
+            className="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 flex items-center justify-center text-blue-100 transition border border-white/10"
+          >
+            <QrCode className="w-4 h-4 text-emerald-300" />
+          </button>
+
           <button
             onClick={() => onNavigate('settings')}
             title="Account & Licence"

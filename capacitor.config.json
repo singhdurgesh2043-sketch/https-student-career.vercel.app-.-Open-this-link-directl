@@ -1,6 +1,6 @@
 {
   "appId": "com.studentcareer.app",
-  "appName": "STUDENT CAREER",
+  "appName": "Student Career App",
   "webDir": "dist",
   "server": {
     "androidScheme": "https",

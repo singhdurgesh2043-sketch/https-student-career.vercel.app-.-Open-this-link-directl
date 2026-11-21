@@ -14,6 +14,7 @@ import {
   Database,
   Moon,
   Sun,
+  QrCode,
 } from 'lucide-react';
 import { CentreProfile, LicenceInfo, ActiveScreen } from '../types';
 import { AppStorage } from '../lib/storage';
@@ -115,6 +116,25 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
             {licence?.device_uuid?.substring(0, 16) || 'ANDROID-DEV-ACTIVE'}
           </span>
         </div>
+      </div>
+
+      {/* Download App & QR Poster */}
+      <div
+        onClick={() => onNavigate('download')}
+        className="bg-blue-50 hover:bg-blue-100/70 border border-blue-200 rounded-3xl p-4 flex items-center justify-between cursor-pointer transition active:scale-[0.98]"
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-blue-700 text-white flex items-center justify-center shadow-xs">
+            <QrCode className="w-5 h-5" />
+          </div>
+          <div>
+            <h4 className="text-xs font-bold text-slate-900">Download App & QR Code</h4>
+            <p className="text-[11px] text-slate-600">
+              Install Android PWA, generate QR poster, and share official links
+            </p>
+          </div>
+        </div>
+        <ChevronRight className="w-5 h-5 text-blue-700" />
       </div>
 
       {/* Super Admin Direct Gateway */}

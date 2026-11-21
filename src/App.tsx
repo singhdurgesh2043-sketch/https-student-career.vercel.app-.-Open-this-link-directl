@@ -17,6 +17,7 @@ import { TimetableScreen } from './screens/TimetableScreen';
 import { ReportsScreen } from './screens/ReportsScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
 import { SuperAdminScreen } from './screens/SuperAdminScreen';
+import { DownloadAppScreen } from './screens/DownloadAppScreen';
 
 export function AppContent() {
   const [currentScreen, setCurrentScreen] = useState<ActiveScreen>('splash');
@@ -33,6 +34,17 @@ export function AppContent() {
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
   const [payments, setPayments] = useState<FeePayment[]>([]);
   const [reports, setReports] = useState<ProgressReport[]>([]);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+
+  // Capture PWA Install Prompt
+  useEffect(() => {
+    const handleBeforeInstall = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+    window.addEventListener('beforeinstallprompt', handleBeforeInstall);
+    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
+  }, []);
 
   // Hydrate from Storage on Mount
   useEffect(() => {
@@ -249,10 +261,18 @@ export function AppContent() {
         {currentScreen === 'superadmin' && (
           <SuperAdminScreen onBack={() => setCurrentScreen('dashboard')} />
         )}
+
+        {currentScreen === 'download' && (
+          <DownloadAppScreen
+            centre={centre}
+            onBack={() => setCurrentScreen('dashboard')}
+            deferredPrompt={deferredPrompt}
+          />
+        )}
       </main>
 
-      {/* Fixed Bottom Navigation (only shown when authenticated and not in superadmin) */}
-      {currentScreen !== 'superadmin' && (
+      {/* Fixed Bottom Navigation */}
+      {currentScreen !== 'superadmin' && currentScreen !== 'download' && (
         <BottomNav
           currentScreen={currentScreen}
           onNavigate={(screen) => setCurrentScreen(screen)}

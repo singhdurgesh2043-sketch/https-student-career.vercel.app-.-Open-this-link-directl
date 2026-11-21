@@ -163,4 +163,5 @@ export type ActiveScreen =
   | 'timetable' 
   | 'reports' 
   | 'settings'
-  | 'superadmin';
+  | 'superadmin'
+  | 'download';

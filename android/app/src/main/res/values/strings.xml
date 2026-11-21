@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">STUDENT CAREER</string>
-    <string name="title_activity_main">STUDENT CAREER</string>
+    <string name="app_name">Student Career App</string>
+    <string name="title_activity_main">Student Career App</string>
     <string name="package_name">com.studentcareer.app</string>
     <string name="custom_url_scheme">com.studentcareer.app</string>
 </resources>
