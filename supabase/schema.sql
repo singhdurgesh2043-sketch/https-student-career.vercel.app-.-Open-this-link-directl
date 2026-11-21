@@ -302,57 +302,215 @@ ALTER TABLE public.fee_payments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.progress_reports ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
 
--- Helper to extract current centre_id from request headers or auth JWT
--- Clients pass 'x-centre-id' or JWT claim 'centre_id'
-CREATE OR REPLACE FUNCTION public.current_centre_id()
+-- ========================================================================
+-- SERVER-SIDE RATE LIMITING TABLE (For Serverless & Multi-Instance Security)
+-- ========================================================================
+CREATE TABLE IF NOT EXISTS public.auth_rate_limits (
+    ip_hash VARCHAR(64) PRIMARY KEY,
+    failed_count INTEGER DEFAULT 1,
+    locked_until TIMESTAMPTZ,
+    last_attempt TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE public.auth_rate_limits ENABLE ROW LEVEL SECURITY;
+-- Rate limits table is accessible only to server service role
+CREATE POLICY service_role_rate_limits_policy ON public.auth_rate_limits
+    FOR ALL
+    TO service_role
+    USING (true);
+
+-- ========================================================================
+-- ROW LEVEL SECURITY (RLS) POLICIES - STRICT TENANT ISOLATION
+-- ========================================================================
+
+ALTER TABLE public.centres ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.licences ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.devices ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.teachers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.batches ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.students ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.timetables ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.attendance ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.fee_structures ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.fee_payments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.progress_reports ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
+
+-- Helper 1: Extract authenticated user's authorized centre_id from auth.uid()
+-- SECURITY: Never trust client headers alone. Must link to verified auth.users.
+CREATE OR REPLACE FUNCTION public.get_auth_centre_id()
 RETURNS UUID AS $$
+DECLARE
+    v_centre_id UUID;
 BEGIN
-    RETURN NULLIF(
-        COALESCE(
-            current_setting('request.jwt.claims', true)::jsonb->>'centre_id',
-            current_setting('request.headers', true)::jsonb->>'x-centre-id'
-        ),
-        ''
-    )::uuid;
-EXCEPTION WHEN OTHERS THEN
-    RETURN NULL;
+    IF auth.uid() IS NULL THEN
+        RETURN NULL;
+    END IF;
+
+    SELECT centre_id INTO v_centre_id
+    FROM public.users
+    WHERE auth_user_id = auth.uid()
+      AND is_active = TRUE
+    LIMIT 1;
+
+    RETURN v_centre_id;
 END;
-$$ LANGUAGE plpgsql STABLE;
+$$ LANGUAGE plpgsql SECURITY DEFINER STABLE;
 
--- RLS for Students: Centre owner/staff only see their centre's students
-CREATE POLICY centre_students_policy ON public.students
-    FOR ALL
-    USING (centre_id = public.current_centre_id() OR public.current_centre_id() IS NULL);
+-- Helper 2: Check if current authenticated user has Super Admin authority
+CREATE OR REPLACE FUNCTION public.is_super_admin()
+RETURNS BOOLEAN AS $$
+BEGIN
+    IF auth.uid() IS NULL THEN
+        RETURN FALSE;
+    END IF;
 
--- RLS for Batches
-CREATE POLICY centre_batches_policy ON public.batches
-    FOR ALL
-    USING (centre_id = public.current_centre_id() OR public.current_centre_id() IS NULL);
+    RETURN EXISTS (
+        SELECT 1 FROM public.users
+        WHERE auth_user_id = auth.uid()
+          AND role = 'superadmin'
+          AND is_active = TRUE
+    );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER STABLE;
 
--- RLS for Attendance
-CREATE POLICY centre_attendance_policy ON public.attendance
-    FOR ALL
-    USING (centre_id = public.current_centre_id() OR public.current_centre_id() IS NULL);
+-- ------------------------------------------------------------------------
+-- CENTRES TABLE POLICY
+-- Normal users can ONLY view their own centre profile. Super Admin sees all.
+-- ------------------------------------------------------------------------
+CREATE POLICY centre_tenant_policy ON public.centres
+    FOR SELECT
+    TO authenticated
+    USING (id = public.get_auth_centre_id() OR public.is_super_admin() = TRUE);
 
--- RLS for Fees
-CREATE POLICY centre_fee_payments_policy ON public.fee_payments
-    FOR ALL
-    USING (centre_id = public.current_centre_id() OR public.current_centre_id() IS NULL);
+CREATE POLICY centre_tenant_update_policy ON public.centres
+    FOR UPDATE
+    TO authenticated
+    USING (id = public.get_auth_centre_id() OR public.is_super_admin() = TRUE)
+    WITH CHECK (id = public.get_auth_centre_id() OR public.is_super_admin() = TRUE);
 
--- RLS for Timetables
-CREATE POLICY centre_timetables_policy ON public.timetables
+-- ------------------------------------------------------------------------
+-- STUDENTS TABLE POLICY
+-- Strict Tenant Isolation: Only accessible to users belonging to the same centre.
+-- Zero access if unauthenticated. Cross-tenant queries fail closed.
+-- ------------------------------------------------------------------------
+CREATE POLICY tenant_students_policy ON public.students
     FOR ALL
-    USING (centre_id = public.current_centre_id() OR public.current_centre_id() IS NULL);
+    TO authenticated
+    USING (
+        (public.get_auth_centre_id() IS NOT NULL AND centre_id = public.get_auth_centre_id())
+        OR public.is_super_admin() = TRUE
+    )
+    WITH CHECK (
+        (public.get_auth_centre_id() IS NOT NULL AND centre_id = public.get_auth_centre_id())
+        OR public.is_super_admin() = TRUE
+    );
 
--- RLS for Progress Reports
-CREATE POLICY centre_progress_policy ON public.progress_reports
+-- ------------------------------------------------------------------------
+-- BATCHES TABLE POLICY
+-- ------------------------------------------------------------------------
+CREATE POLICY tenant_batches_policy ON public.batches
     FOR ALL
-    USING (centre_id = public.current_centre_id() OR public.current_centre_id() IS NULL);
+    TO authenticated
+    USING (
+        (public.get_auth_centre_id() IS NOT NULL AND centre_id = public.get_auth_centre_id())
+        OR public.is_super_admin() = TRUE
+    )
+    WITH CHECK (
+        (public.get_auth_centre_id() IS NOT NULL AND centre_id = public.get_auth_centre_id())
+        OR public.is_super_admin() = TRUE
+    );
 
--- RLS for Teachers
-CREATE POLICY centre_teachers_policy ON public.teachers
+-- ------------------------------------------------------------------------
+-- ATTENDANCE TABLE POLICY
+-- ------------------------------------------------------------------------
+CREATE POLICY tenant_attendance_policy ON public.attendance
     FOR ALL
-    USING (centre_id = public.current_centre_id() OR public.current_centre_id() IS NULL);
+    TO authenticated
+    USING (
+        (public.get_auth_centre_id() IS NOT NULL AND centre_id = public.get_auth_centre_id())
+        OR public.is_super_admin() = TRUE
+    )
+    WITH CHECK (
+        (public.get_auth_centre_id() IS NOT NULL AND centre_id = public.get_auth_centre_id())
+        OR public.is_super_admin() = TRUE
+    );
+
+-- ------------------------------------------------------------------------
+-- FEE PAYMENTS TABLE POLICY
+-- ------------------------------------------------------------------------
+CREATE POLICY tenant_fee_payments_policy ON public.fee_payments
+    FOR ALL
+    TO authenticated
+    USING (
+        (public.get_auth_centre_id() IS NOT NULL AND centre_id = public.get_auth_centre_id())
+        OR public.is_super_admin() = TRUE
+    )
+    WITH CHECK (
+        (public.get_auth_centre_id() IS NOT NULL AND centre_id = public.get_auth_centre_id())
+        OR public.is_super_admin() = TRUE
+    );
+
+-- ------------------------------------------------------------------------
+-- TIMETABLES TABLE POLICY
+-- ------------------------------------------------------------------------
+CREATE POLICY tenant_timetables_policy ON public.timetables
+    FOR ALL
+    TO authenticated
+    USING (
+        (public.get_auth_centre_id() IS NOT NULL AND centre_id = public.get_auth_centre_id())
+        OR public.is_super_admin() = TRUE
+    )
+    WITH CHECK (
+        (public.get_auth_centre_id() IS NOT NULL AND centre_id = public.get_auth_centre_id())
+        OR public.is_super_admin() = TRUE
+    );
+
+-- ------------------------------------------------------------------------
+-- PROGRESS REPORTS TABLE POLICY
+-- ------------------------------------------------------------------------
+CREATE POLICY tenant_progress_policy ON public.progress_reports
+    FOR ALL
+    TO authenticated
+    USING (
+        (public.get_auth_centre_id() IS NOT NULL AND centre_id = public.get_auth_centre_id())
+        OR public.is_super_admin() = TRUE
+    )
+    WITH CHECK (
+        (public.get_auth_centre_id() IS NOT NULL AND centre_id = public.get_auth_centre_id())
+        OR public.is_super_admin() = TRUE
+    );
+
+-- ------------------------------------------------------------------------
+-- TEACHERS TABLE POLICY
+-- ------------------------------------------------------------------------
+CREATE POLICY tenant_teachers_policy ON public.teachers
+    FOR ALL
+    TO authenticated
+    USING (
+        (public.get_auth_centre_id() IS NOT NULL AND centre_id = public.get_auth_centre_id())
+        OR public.is_super_admin() = TRUE
+    )
+    WITH CHECK (
+        (public.get_auth_centre_id() IS NOT NULL AND centre_id = public.get_auth_centre_id())
+        OR public.is_super_admin() = TRUE
+    );
+
+-- ------------------------------------------------------------------------
+-- LICENCES & DEVICES POLICY
+-- Accessible exclusively to Super Admin. Normal centres cannot tamper with licences.
+-- ------------------------------------------------------------------------
+CREATE POLICY superadmin_licences_policy ON public.licences
+    FOR ALL
+    TO authenticated
+    USING (public.is_super_admin() = TRUE)
+    WITH CHECK (public.is_super_admin() = TRUE);
+
+CREATE POLICY superadmin_devices_policy ON public.devices
+    FOR ALL
+    TO authenticated
+    USING (public.is_super_admin() = TRUE)
+    WITH CHECK (public.is_super_admin() = TRUE);
 
 -- Allow public licence validation RPC (security definer function below)
 

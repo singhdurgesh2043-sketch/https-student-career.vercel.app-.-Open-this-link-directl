@@ -8,7 +8,7 @@ import {
   Lock,
   AlertTriangle,
   Clock,
-  Sparkles,
+  WifiOff,
 } from 'lucide-react';
 import { AdminAuthService } from '../services/adminAuthService';
 
@@ -25,9 +25,8 @@ export const SuperAdminLoginScreen: React.FC<SuperAdminLoginScreenProps> = ({
   const [showCode, setShowCode] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
-  const [remainingAttempts, setRemainingAttempts] = useState(
-    AdminAuthService.getRemainingAttempts()
-  );
+  const [isOfflineError, setIsOfflineError] = useState(false);
+  const [remainingAttempts, setRemainingAttempts] = useState<number | null>(null);
   const [lockoutSeconds, setLockoutSeconds] = useState<number>(0);
 
   // Check lockout on mount & tick countdown
@@ -38,7 +37,6 @@ export const SuperAdminLoginScreen: React.FC<SuperAdminLoginScreenProps> = ({
         setLockoutSeconds(status.remainingSeconds);
       } else {
         setLockoutSeconds(0);
-        setRemainingAttempts(AdminAuthService.getRemainingAttempts());
       }
     };
 
@@ -53,6 +51,7 @@ export const SuperAdminLoginScreen: React.FC<SuperAdminLoginScreenProps> = ({
 
     setIsLoading(true);
     setErrorMessage('');
+    setIsOfflineError(false);
 
     try {
       const result = await AdminAuthService.verifyAccessCode(accessCode);
@@ -60,6 +59,9 @@ export const SuperAdminLoginScreen: React.FC<SuperAdminLoginScreenProps> = ({
         onAuthenticated();
       } else {
         setErrorMessage(result.error || 'Access Denied: Invalid Secret Code.');
+        if (result.isOffline) {
+          setIsOfflineError(true);
+        }
         if (typeof result.remainingAttempts === 'number') {
           setRemainingAttempts(result.remainingAttempts);
         }
@@ -90,7 +92,7 @@ export const SuperAdminLoginScreen: React.FC<SuperAdminLoginScreenProps> = ({
         <button
           type="button"
           onClick={onBack}
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-white transition"
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-white transition cursor-pointer"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>Back to App Settings</span>
@@ -125,8 +127,19 @@ export const SuperAdminLoginScreen: React.FC<SuperAdminLoginScreenProps> = ({
             </div>
           )}
 
+          {/* Offline Architecture Warning Banner */}
+          {isOfflineError && (
+            <div className="p-3 bg-amber-500/15 border border-amber-500/30 rounded-2xl text-amber-200 text-xs flex items-start gap-2.5">
+              <WifiOff className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+              <div className="text-[11px] leading-relaxed">
+                <span className="font-bold block text-amber-300 mb-0.5">Server Connection Required</span>
+                Super Admin authentication is verified server-side. For security reasons, master administrative access cannot be validated offline.
+              </div>
+            </div>
+          )}
+
           {/* Error Message */}
-          {errorMessage && lockoutSeconds === 0 && (
+          {errorMessage && !isOfflineError && lockoutSeconds === 0 && (
             <div className="p-3 bg-rose-500/15 border border-rose-500/30 rounded-2xl text-rose-300 text-xs flex items-start gap-2">
               <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
               <div className="leading-tight">{errorMessage}</div>
@@ -139,8 +152,8 @@ export const SuperAdminLoginScreen: React.FC<SuperAdminLoginScreenProps> = ({
                 <label className="text-xs font-bold text-slate-300">
                   Secret Access Code
                 </label>
-                {lockoutSeconds === 0 && (
-                  <span className="text-[10px] text-slate-400 font-mono">
+                {lockoutSeconds === 0 && remainingAttempts !== null && (
+                  <span className="text-[10px] text-amber-400 font-mono">
                     {remainingAttempts} {remainingAttempts === 1 ? 'attempt' : 'attempts'} left
                   </span>
                 )}
@@ -152,7 +165,7 @@ export const SuperAdminLoginScreen: React.FC<SuperAdminLoginScreenProps> = ({
                   type={showCode ? 'text' : 'password'}
                   value={accessCode}
                   onChange={(e) => setAccessCode(e.target.value)}
-                  placeholder="Enter master code..."
+                  placeholder="Enter private master secret..."
                   disabled={lockoutSeconds > 0 || isLoading}
                   className="w-full pl-9 pr-10 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-xs font-mono text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400 disabled:opacity-50"
                   autoComplete="off"
@@ -162,7 +175,7 @@ export const SuperAdminLoginScreen: React.FC<SuperAdminLoginScreenProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowCode(!showCode)}
-                  className="absolute right-3 top-2.5 text-slate-400 hover:text-white"
+                  className="absolute right-3 top-2.5 text-slate-400 hover:text-white cursor-pointer"
                 >
                   {showCode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -172,16 +185,16 @@ export const SuperAdminLoginScreen: React.FC<SuperAdminLoginScreenProps> = ({
             <button
               type="submit"
               disabled={lockoutSeconds > 0 || isLoading || !accessCode.trim()}
-              className="w-full py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 active:scale-[0.98] text-slate-950 font-extrabold rounded-xl text-xs flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 transition disabled:opacity-50"
+              className="w-full py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 active:scale-[0.98] text-slate-950 font-extrabold rounded-xl text-xs flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 transition disabled:opacity-50 cursor-pointer"
             >
               <ShieldAlert className="w-4 h-4" />
-              <span>{isLoading ? 'Verifying Credentials...' : 'Authorize Access'}</span>
+              <span>{isLoading ? 'Verifying with Server...' : 'Authorize Access'}</span>
             </button>
           </form>
 
           <div className="pt-2 border-t border-slate-700/60 text-center">
             <p className="text-[10px] text-slate-500 leading-relaxed">
-              Protected with rate limiting, serverless authentication, and ephemeral session isolation.
+              Protected by server-side verification, rate limiting, and cryptographic HMAC-SHA256 session tokens.
             </p>
           </div>
         </div>

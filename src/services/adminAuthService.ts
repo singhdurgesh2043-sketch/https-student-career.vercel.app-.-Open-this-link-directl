@@ -1,45 +1,54 @@
 /**
  * Super Admin Authentication & Security Service
- * Implements serverless verification, cryptographic hashing,
- * brute-force rate-limiting, and ephemeral session management.
+ * 
+ * CRITICAL SECURITY ARCHITECTURE:
+ * 1. Zero secrets in frontend JavaScript, client bundles, or VITE_ environment variables.
+ * 2. All Super Admin authentications are verified server-side via /api/admin-verify.
+ * 3. Successful authentication yields a cryptographically signed HMAC-SHA256 session token.
+ * 4. Sensitive administrative actions require the server-signed token in Authorization headers.
+ * 5. Offline Android APKs fail closed with clear security guidance rather than pretending
+ *    an offline embedded secret is secure.
  */
-
-const MAX_FAILED_ATTEMPTS = 5;
-const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 Minutes
-const SESSION_DURATION_MS = 30 * 60 * 1000; // 30 Minutes
 
 const STORAGE_KEYS = {
   TOKEN: 'sc_superadmin_session_token',
   EXPIRY: 'sc_superadmin_session_expiry',
-  FAILED: 'sc_superadmin_failed_attempts',
-  LOCKOUT: 'sc_superadmin_lockout_until',
+  LOCKOUT_UNTIL: 'sc_superadmin_lockout_until',
 };
-
-// Default placeholder for offline/local development (Override in .env)
-const PLACEHOLDER_DEFAULT_CODE = 'ADMIN-SECRET-2026';
-const CRYPTO_SALT = 'sc_super_admin_security_salt_v1';
-
-async function sha256(message: string): Promise<string> {
-  const msgUint8 = new TextEncoder().encode(message);
-  const hashBuffer = await window.crypto.subtle.digest('SHA-256', msgUint8);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
-}
 
 export interface AuthVerifyResult {
   success: boolean;
   error?: string;
   remainingAttempts?: number;
   lockoutRemainingSeconds?: number;
+  isOffline?: boolean;
 }
 
 export const AdminAuthService = {
   /**
-   * Checks current lockout status
+   * Retrieves the active server-signed session token
+   */
+  getToken(): string | null {
+    try {
+      const token = sessionStorage.getItem(STORAGE_KEYS.TOKEN);
+      const expiry = sessionStorage.getItem(STORAGE_KEYS.EXPIRY);
+      if (!token || !expiry) return null;
+      if (Date.now() > Number(expiry)) {
+        this.logout();
+        return null;
+      }
+      return token;
+    } catch {
+      return null;
+    }
+  },
+
+  /**
+   * Checks current lockout status from session or server feedback
    */
   getLockoutStatus(): { isLocked: boolean; remainingSeconds: number } {
     try {
-      const lockoutUntil = sessionStorage.getItem(STORAGE_KEYS.LOCKOUT);
+      const lockoutUntil = sessionStorage.getItem(STORAGE_KEYS.LOCKOUT_UNTIL);
       if (lockoutUntil) {
         const remainingMs = Number(lockoutUntil) - Date.now();
         if (remainingMs > 0) {
@@ -48,9 +57,7 @@ export const AdminAuthService = {
             remainingSeconds: Math.ceil(remainingMs / 1000),
           };
         }
-        // Lockout expired, clean up
-        sessionStorage.removeItem(STORAGE_KEYS.LOCKOUT);
-        sessionStorage.removeItem(STORAGE_KEYS.FAILED);
+        sessionStorage.removeItem(STORAGE_KEYS.LOCKOUT_UNTIL);
       }
     } catch {
       // Storage unavailable fallback
@@ -59,43 +66,28 @@ export const AdminAuthService = {
   },
 
   /**
-   * Gets remaining attempts before lockout
-   */
-  getRemainingAttempts(): number {
-    try {
-      const failed = Number(sessionStorage.getItem(STORAGE_KEYS.FAILED) || '0');
-      return Math.max(0, MAX_FAILED_ATTEMPTS - failed);
-    } catch {
-      return MAX_FAILED_ATTEMPTS;
-    }
-  },
-
-  /**
-   * Authenticates the Super Admin Secret Access Code
+   * Authenticates the Super Admin Secret Access Code strictly via the secure server
    */
   async verifyAccessCode(inputCode: string): Promise<AuthVerifyResult> {
-    const lockout = this.getLockoutStatus();
-    if (lockout.isLocked) {
-      const minutes = Math.floor(lockout.remainingSeconds / 60);
-      const seconds = lockout.remainingSeconds % 60;
-      return {
-        success: false,
-        error: `Security Lockout Active: Too many failed attempts. Try again in ${minutes}m ${seconds}s.`,
-        lockoutRemainingSeconds: lockout.remainingSeconds,
-      };
-    }
-
     const trimmedCode = inputCode.trim();
     if (!trimmedCode) {
       return { success: false, error: 'Please enter the Secret Access Code.' };
     }
 
-    let isMatch = false;
+    const currentLockout = this.getLockoutStatus();
+    if (currentLockout.isLocked) {
+      const minutes = Math.floor(currentLockout.remainingSeconds / 60);
+      const seconds = currentLockout.remainingSeconds % 60;
+      return {
+        success: false,
+        error: `Security Lockout Active: Too many failed attempts. Try again in ${minutes}m ${seconds}s.`,
+        lockoutRemainingSeconds: currentLockout.remainingSeconds,
+      };
+    }
 
-    // 1. Try Server-Side Verification Endpoint (if hosted on Vercel/Node)
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 4000);
+      const timeoutId = setTimeout(() => controller.abort(), 6000);
 
       const response = await fetch('/api/admin-verify', {
         method: 'POST',
@@ -105,119 +97,154 @@ export const AdminAuthService = {
       });
       clearTimeout(timeoutId);
 
-      if (response.status === 200) {
-        const data = await response.json();
-        if (data.authenticated) {
-          isMatch = true;
+      const data = await response.json();
+
+      // Case 1: Successful Server Authentication
+      if (response.status === 200 && data.authenticated && data.token) {
+        this.saveSession(data.token, data.expiresAt);
+        return { success: true };
+      }
+
+      // Case 2: Server-Side Rate Limiting / 15-Minute Lockout Triggered
+      if (response.status === 429) {
+        const remainingSec = data.lockoutRemainingSeconds || 900;
+        try {
+          sessionStorage.setItem(
+            STORAGE_KEYS.LOCKOUT_UNTIL,
+            String(Date.now() + remainingSec * 1000)
+          );
+        } catch {
+          // Ignore
         }
-      } else if (response.status === 401) {
-        isMatch = false;
+        return {
+          success: false,
+          error: data.error || 'Security Lockout: 5 failed attempts. Access blocked for 15 minutes.',
+          lockoutRemainingSeconds: remainingSec,
+        };
       }
-    } catch {
-      // Offline mode or serverless endpoint not running in local Vite dev
-    }
 
-    // 2. Client-Side Cryptographic Verification (For Offline Capacitor Android APK)
-    if (!isMatch) {
-      const configuredEnvCode = import.meta.env.VITE_SUPER_ADMIN_ACCESS_CODE;
-      const configuredEnvHash = import.meta.env.VITE_SUPER_ADMIN_SECRET_HASH;
-
-      const inputSaltedHash = await sha256(trimmedCode + CRYPTO_SALT);
-
-      if (configuredEnvHash && typeof configuredEnvHash === 'string') {
-        isMatch = inputSaltedHash.toLowerCase() === configuredEnvHash.trim().toLowerCase();
-      } else if (configuredEnvCode && typeof configuredEnvCode === 'string') {
-        isMatch = trimmedCode === configuredEnvCode.trim();
-      } else {
-        // Default Placeholder configuration
-        isMatch = trimmedCode === PLACEHOLDER_DEFAULT_CODE;
+      // Case 3: Invalid Credentials
+      if (response.status === 401) {
+        return {
+          success: false,
+          error: data.error || 'Invalid secret access code. Access denied.',
+          remainingAttempts: data.remainingAttempts,
+        };
       }
-    }
 
-    // Process Match Outcome
-    if (isMatch) {
-      this.createSession();
-      return { success: true };
-    }
+      // Case 4: Server Secret Unconfigured
+      if (response.status === 503) {
+        return {
+          success: false,
+          error: 'SUPER_ADMIN_SECRET_CODE is not yet configured in server environment variables.',
+        };
+      }
 
-    // Handle Failed Attempt
-    return this.recordFailedAttempt();
+      return {
+        success: false,
+        error: data.error || 'Server rejected authentication request.',
+      };
+    } catch (networkError: any) {
+      // Offline / Network Failure:
+      // SECURITY RULE: Never pretend a hardcoded client secret is secure offline.
+      return {
+        success: false,
+        isOffline: true,
+        error:
+          'Server Connection Unavailable: Super Admin authentication requires a secure connection to the verification server. For security reasons, master administrative access cannot be granted offline without server validation.',
+      };
+    }
   },
 
   /**
-   * Records a failed attempt and triggers lockout if max attempts exceeded
+   * Saves cryptographic server-signed session token in ephemeral sessionStorage
    */
-  recordFailedAttempt(): AuthVerifyResult {
-    let currentFailed = 0;
+  saveSession(token: string, expiresAt: number): void {
     try {
-      currentFailed = Number(sessionStorage.getItem(STORAGE_KEYS.FAILED) || '0') + 1;
-      sessionStorage.setItem(STORAGE_KEYS.FAILED, String(currentFailed));
+      sessionStorage.setItem(STORAGE_KEYS.TOKEN, token);
+      sessionStorage.setItem(STORAGE_KEYS.EXPIRY, String(expiresAt));
+      sessionStorage.removeItem(STORAGE_KEYS.LOCKOUT_UNTIL);
     } catch {
-      currentFailed = 1;
+      // Fallback
     }
+  },
 
-    const remaining = Math.max(0, MAX_FAILED_ATTEMPTS - currentFailed);
+  /**
+   * Verifies if an active, unexpired session exists locally
+   */
+  isAuthenticated(): boolean {
+    return this.getToken() !== null;
+  },
 
-    if (remaining === 0) {
-      const lockoutUntil = Date.now() + LOCKOUT_DURATION_MS;
-      try {
-        sessionStorage.setItem(STORAGE_KEYS.LOCKOUT, String(lockoutUntil));
-      } catch {
-        // Ignore
+  /**
+   * Validates the active session against the server
+   */
+  async verifyServerSession(): Promise<boolean> {
+    const token = this.getToken();
+    if (!token) return false;
+
+    try {
+      const response = await fetch('/api/admin-session-verify', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (response.status === 200) {
+        const data = await response.json();
+        return data.valid === true;
       }
+      this.logout();
+      return false;
+    } catch {
+      // Network unreachable; local unexpired token remains tentatively valid
+      return true;
+    }
+  },
+
+  /**
+   * Executes a sensitive administrative action via the server
+   */
+  async executeAdminAction(
+    action: string,
+    targetId?: string,
+    payload?: any
+  ): Promise<{ success: boolean; message?: string; error?: string }> {
+    const token = this.getToken();
+    if (!token) {
       return {
         success: false,
-        error: `Security Lockout Triggered: 5 failed attempts. Access blocked for 15 minutes.`,
-        remainingAttempts: 0,
-        lockoutRemainingSeconds: Math.ceil(LOCKOUT_DURATION_MS / 1000),
+        error: 'Unauthorized: Active Super Admin session token required.',
       };
     }
 
-    return {
-      success: false,
-      error: `Access Denied: Invalid Secret Access Code. (${remaining} ${
-        remaining === 1 ? 'attempt' : 'attempts'
-      } remaining before lockout)`,
-      remainingAttempts: remaining,
-    };
-  },
-
-  /**
-   * Creates an ephemeral authenticated session
-   */
-  createSession(): void {
     try {
-      const array = new Uint8Array(24);
-      window.crypto.getRandomValues(array);
-      const token = Array.from(array, (b) => b.toString(16).padStart(2, '0')).join('');
-      const expiry = Date.now() + SESSION_DURATION_MS;
+      const response = await fetch('/api/admin-action', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ action, targetId, payload }),
+      });
 
-      sessionStorage.setItem(STORAGE_KEYS.TOKEN, token);
-      sessionStorage.setItem(STORAGE_KEYS.EXPIRY, String(expiry));
-      sessionStorage.removeItem(STORAGE_KEYS.FAILED);
-      sessionStorage.removeItem(STORAGE_KEYS.LOCKOUT);
-    } catch {
-      // Session fallback
-    }
-  },
-
-  /**
-   * Verifies if the Super Admin session is active and valid
-   */
-  isAuthenticated(): boolean {
-    try {
-      const token = sessionStorage.getItem(STORAGE_KEYS.TOKEN);
-      const expiry = sessionStorage.getItem(STORAGE_KEYS.EXPIRY);
-      if (!token || !expiry) return false;
-
-      const isExpired = Date.now() > Number(expiry);
-      if (isExpired) {
-        this.logout();
-        return false;
+      const data = await response.json();
+      if (response.status === 200 && data.success) {
+        return { success: true, message: data.message };
       }
-      return true;
+
+      if (response.status === 401 || response.status === 403) {
+        this.logout();
+      }
+
+      return { success: false, error: data.error || 'Administrative action rejected.' };
     } catch {
-      return false;
+      return {
+        success: false,
+        error: 'Network error executing administrative action.',
+      };
     }
   },
 

@@ -71,6 +71,12 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({ onBack }) =>
   useEffect(() => {
     if (isAuthenticated) {
       loadAdminData();
+      // Periodically verify session validity
+      AdminAuthService.verifyServerSession().then((isValid) => {
+        if (!isValid) {
+          setIsAuthenticated(false);
+        }
+      });
     }
   }, [isAuthenticated]);
 
@@ -130,20 +136,22 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({ onBack }) =>
     setNewOwnerPhone('');
   };
 
-  const handleToggleStatus = (centreId: string) => {
+  const handleToggleStatus = async (centreId: string) => {
     const centre = centres.find((c) => c.id === centreId);
     if (!centre) return;
     const nextStatus = centre.status === 'active' ? 'inactive' : 'active';
+    await AdminAuthService.executeAdminAction('toggle_centre_status', centreId, { status: nextStatus });
     AppStorage.updateCentreStatus(centreId, nextStatus);
     loadAdminData();
   };
 
-  const handleResetDevice = (l: LicenceInfo) => {
+  const handleResetDevice = async (l: LicenceInfo) => {
     if (
       confirm(
         `Authorized Device Replacement: Reset hardware pairing for "${l.centre_name}"?\nThe customer will be able to activate on their replacement smartphone.`
       )
     ) {
+      await AdminAuthService.executeAdminAction('reset_hardware_device', l.id);
       const updatedLicence: LicenceInfo = {
         ...l,
         device_count: 0,
