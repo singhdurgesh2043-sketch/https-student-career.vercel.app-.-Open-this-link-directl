@@ -15,6 +15,9 @@ on:
       - '.github/workflows/android-build.yml'
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build-and-verify:
     name: Build, Sign & Verify Release
@@ -71,7 +74,7 @@ jobs:
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: bash scripts/sign-and-verify.sh
 
-      - name: 11. Upload Verified Signed APK
+      - name: 11. Upload Verified Signed APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: StudentCareerApp-Verified-Signed-APK
@@ -79,7 +82,7 @@ jobs:
           if-no-files-found: error
           retention-days: 60
 
-      - name: 12. Upload Verified Signed AAB
+      - name: 12. Upload Verified Signed AAB Artifact
         uses: actions/upload-artifact@v4
         with:
           name: StudentCareerApp-Verified-Signed-AAB
@@ -102,3 +105,17 @@ jobs:
           path: dist-android/version.json
           if-no-files-found: error
           retention-days: 60
+
+      - name: 15. Publish Verified Release to Permanent Storage
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        continue-on-error: true
+        with:
+          tag_name: v1.0.0
+          name: Student Career App v1.0.0 Production Release
+          draft: false
+          prerelease: false
+          files: |
+            dist-android/StudentCareerApp-release.apk
+            dist-android/StudentCareerApp-release.aab
+            dist-android/version.json

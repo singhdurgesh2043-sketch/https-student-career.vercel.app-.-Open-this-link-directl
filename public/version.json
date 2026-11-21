@@ -1,19 +1,23 @@
 {
   "versionCode": 1,
   "versionName": "1.0.0",
+  "webVersion": "1.0.0",
   "minSupportedVersionCode": 1,
+  "minSupportedNativeVersionCode": 1,
   "isMandatory": false,
   "publishedAt": "2026-11-21T09:00:00Z",
   "apkUrl": "https://github.com/singhdurgesh2043-sketch/https-student-career.vercel.app-.-Open-this-link-directl/releases/latest/download/StudentCareerApp-release.apk",
+  "aabUrl": "https://github.com/singhdurgesh2043-sketch/https-student-career.vercel.app-.-Open-this-link-directl/releases/latest/download/StudentCareerApp-release.aab",
   "apkSha256": "47a988d4474771960249c5ebfa5566f7f6a788876c43315a676ebf6727289ad9",
   "fileSizeBytes": 3314520,
-  "releaseTitle": "Student Career App v1.0.0 Initial Release",
+  "releaseTitle": "Student Career App v1.0.0 Production Release",
   "releaseNotes": [
-    "Complete Student Management Module with Search, Edit & Delete",
-    "Tuition Batch & Timing Scheduling",
-    "Attendance Tracking & Daily Registers",
-    "Fee Receipts with PDF Download & WhatsApp Share",
-    "Progressive Web App (PWA) Offline Capability",
-    "Native Android Capacitor 8 Build with In-App Auto Update System"
-  ]
+    "Hybrid Auto Update Architecture: Instant remote web updates without reinstalling APK",
+    "Cryptographically Verified In-App APK Updates with SHA-256 Checksum Validation",
+    "Strict Server-Side Super Admin Security with HMAC-SHA256 Ephemeral Session Tokens",
+    "Fail-Closed Multi-Tenant Row Level Security (RLS) Database Architecture",
+    "Fresh Registration & Complete Separation of Demo Records from Production Data",
+    "Offline Fallback Support & Protected Administrative Rollback Controls"
+  ],
+  "updateType": "hybrid"
 }

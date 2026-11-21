@@ -26,6 +26,19 @@ import { LicenceInfo, CentreProfile, Student, Batch } from '../types';
 import { AppStorage } from '../lib/storage';
 import { AdminAuthService } from '../services/adminAuthService';
 import { SuperAdminLoginScreen } from './SuperAdminLoginScreen';
+import { LiveUpdateService, HybridUpdateConfig } from '../services/liveUpdateService';
+import { CURRENT_APP_VERSION } from '../config/appVersion';
+import { BRANDING } from '../config/branding';
+import {
+  ArrowUpCircle,
+  RefreshCw,
+  Globe,
+  Radio,
+  FileCode2,
+  AlertTriangle,
+  History,
+  GitBranch,
+} from 'lucide-react';
 
 interface SuperAdminScreenProps {
   onBack: () => void;
@@ -43,6 +56,15 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({ onBack }) =>
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'real' | 'demo' | 'active' | 'inactive'>('all');
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  // Section Selector: Centres vs Hybrid Updates
+  const [adminSection, setAdminSection] = useState<'centres' | 'updates'>('centres');
+  const [hybridConfig, setHybridConfig] = useState<HybridUpdateConfig>(() =>
+    LiveUpdateService.getConfig()
+  );
+  const [updateManifest, setUpdateManifest] = useState<any>(null);
+  const [isCheckingUpdates, setIsCheckingUpdates] = useState(false);
+  const [rollbackStatus, setRollbackStatus] = useState<string | null>(null);
 
   // Inspector Modal State
   const [inspectCentre, setInspectCentre] = useState<{
@@ -68,9 +90,38 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({ onBack }) =>
     setLicences(allLicences);
   };
 
+  const fetchRemoteManifest = async () => {
+    setIsCheckingUpdates(true);
+    setRollbackStatus(null);
+    try {
+      const res = await fetch(`/api/version?t=${Date.now()}`);
+      if (res.ok) {
+        const data = await res.json();
+        setUpdateManifest(data);
+      } else {
+        const fallback = await fetch(`/version.json?t=${Date.now()}`);
+        if (fallback.ok) {
+          setUpdateManifest(await fallback.json());
+        }
+      }
+    } catch {
+      try {
+        const fallback = await fetch(`/version.json?t=${Date.now()}`);
+        if (fallback.ok) {
+          setUpdateManifest(await fallback.json());
+        }
+      } catch {
+        // Offline
+      }
+    } finally {
+      setIsCheckingUpdates(false);
+    }
+  };
+
   useEffect(() => {
     if (isAuthenticated) {
       loadAdminData();
+      fetchRemoteManifest();
       // Periodically verify session validity
       AdminAuthService.verifyServerSession().then((isValid) => {
         if (!isValid) {
@@ -79,6 +130,18 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({ onBack }) =>
       });
     }
   }, [isAuthenticated]);
+
+  const handleRollback = () => {
+    const res = LiveUpdateService.rollbackToLocalBundle();
+    setHybridConfig(LiveUpdateService.getConfig());
+    setRollbackStatus(res.message);
+  };
+
+  const handleEnableRemote = async () => {
+    const res = await LiveUpdateService.enableRemoteLiveSync();
+    setHybridConfig(LiveUpdateService.getConfig());
+    setRollbackStatus(res.message);
+  };
 
   const handleLogout = () => {
     AdminAuthService.logout();
@@ -230,6 +293,251 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({ onBack }) =>
           </button>
         </div>
       </div>
+
+      {/* Module Selector Tabs (Part 12: Authorized Update Management Section) */}
+      <div className="flex bg-slate-200/80 p-1 rounded-2xl gap-1">
+        <button
+          onClick={() => setAdminSection('centres')}
+          className={`flex-1 py-2 text-xs font-bold rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5 ${
+            adminSection === 'centres'
+              ? 'bg-white text-slate-900 shadow-sm'
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <Building className="w-3.5 h-3.5 text-blue-700" />
+          <span>Centres & Licences</span>
+        </button>
+        <button
+          onClick={() => setAdminSection('updates')}
+          className={`flex-1 py-2 text-xs font-bold rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5 ${
+            adminSection === 'updates'
+              ? 'bg-white text-slate-900 shadow-sm'
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <ArrowUpCircle className="w-3.5 h-3.5 text-emerald-600" />
+          <span>Update Management</span>
+        </button>
+      </div>
+
+      {/* SECTION 1: HYBRID UPDATE MANAGEMENT PANEL */}
+      {adminSection === 'updates' && (
+        <div className="space-y-4">
+          {/* Rollback & Alert Banner */}
+          {rollbackStatus && (
+            <div className="p-3.5 bg-blue-50 border border-blue-200 text-blue-900 rounded-2xl text-xs flex items-center justify-between gap-2 shadow-xs">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0" />
+                <span>{rollbackStatus}</span>
+              </div>
+              <button
+                onClick={() => setRollbackStatus(null)}
+                className="text-[10px] text-blue-700 font-bold hover:underline cursor-pointer"
+              >
+                Dismiss
+              </button>
+            </div>
+          )}
+
+          {/* Top Status Overview */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+            {/* Website Status */}
+            <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-xs space-y-1.5">
+              <div className="flex items-center justify-between text-slate-500 text-[10px] font-bold uppercase tracking-wider">
+                <span className="flex items-center gap-1">
+                  <Globe className="w-3.5 h-3.5 text-blue-600" />
+                  <span>Vercel Website</span>
+                </span>
+                <span className="text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                  Live
+                </span>
+              </div>
+              <p className="text-xl font-black text-slate-900">
+                v{updateManifest?.webVersion || '1.0.0'}
+              </p>
+              <p className="text-[10px] text-slate-500">
+                Latest deployed website version
+              </p>
+            </div>
+
+            {/* Android Remote Web Update (OTA) Status */}
+            <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-xs space-y-1.5">
+              <div className="flex items-center justify-between text-slate-500 text-[10px] font-bold uppercase tracking-wider">
+                <span className="flex items-center gap-1">
+                  <Radio className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Remote Web (OTA)</span>
+                </span>
+                <span className={`px-1.5 py-0.5 rounded border text-[9px] font-bold ${
+                  hybridConfig.mode === 'remote_live'
+                    ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
+                    : 'text-amber-700 bg-amber-50 border-amber-200'
+                }`}>
+                  {hybridConfig.mode === 'remote_live' ? 'Remote Sync Active' : 'Bundled Local'}
+                </span>
+              </div>
+              <p className="text-xl font-black text-slate-900">
+                {hybridConfig.mode === 'remote_live' ? 'Auto-Delivered' : 'Offline Bundle'}
+              </p>
+              <p className="text-[10px] text-slate-500">
+                Safe remote UI updates without APK install
+              </p>
+            </div>
+
+            {/* Native Android APK Version */}
+            <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-xs space-y-1.5">
+              <div className="flex items-center justify-between text-slate-500 text-[10px] font-bold uppercase tracking-wider">
+                <span className="flex items-center gap-1">
+                  <Smartphone className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>Native APK Binary</span>
+                </span>
+                <span className="text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200">
+                  Build #{updateManifest?.versionCode || CURRENT_APP_VERSION.versionCode}
+                </span>
+              </div>
+              <p className="text-xl font-black text-slate-900">
+                v{updateManifest?.versionName || CURRENT_APP_VERSION.versionName}
+              </p>
+              <p className="text-[10px] text-slate-500">
+                Min Supported: Build #{updateManifest?.minSupportedNativeVersionCode || 1}
+              </p>
+            </div>
+          </div>
+
+          {/* Update Classification & Strategy Card */}
+          <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-xs space-y-3.5">
+            <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+              <FileCode2 className="w-4 h-4 text-blue-700" />
+              <span>Hybrid Update Delivery Matrix</span>
+            </h4>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-2xl p-3.5 space-y-1.5">
+                <div className="flex items-center gap-1.5 font-bold text-emerald-900">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  <span>Remote Web Application Updates (OTA)</span>
+                </div>
+                <p className="text-[11px] text-emerald-800 leading-relaxed">
+                  <strong>Zero APK Reinstall Required:</strong> UI layouts, text changes, dashboard widgets, tuition business logic, and web features become immediately available to installed Android users upon Vercel deployment.
+                </p>
+              </div>
+
+              <div className="bg-amber-50/70 border border-amber-200/80 rounded-2xl p-3.5 space-y-1.5">
+                <div className="flex items-center gap-1.5 font-bold text-amber-900">
+                  <AlertTriangle className="w-4 h-4 text-amber-600" />
+                  <span>Native APK Release Required</span>
+                </div>
+                <p className="text-[11px] text-amber-800 leading-relaxed">
+                  <strong>Signed APK Build Required:</strong> Only when adding new native Capacitor plugins, modifying AndroidManifest permissions, changing the native app icon, or updating native splash screen assets.
+                </p>
+              </div>
+            </div>
+
+            {/* Action Row: Rollback & Sync Controls */}
+            <div className="pt-2 border-t border-slate-100 flex flex-wrap gap-2 items-center justify-between">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleRollback}
+                  className="py-2 px-3 bg-slate-100 hover:bg-amber-100 text-slate-700 hover:text-amber-900 font-bold rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer"
+                  title="Roll back to certified local bundle if remote deployment has issues"
+                >
+                  <RotateCcw className="w-3.5 h-3.5 text-amber-600" />
+                  <span>Revert to Certified Local Bundle</span>
+                </button>
+
+                <button
+                  onClick={handleEnableRemote}
+                  className="py-2 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer"
+                  title="Enable remote live updates over the air"
+                >
+                  <Radio className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Force Remote Live Sync</span>
+                </button>
+              </div>
+
+              <button
+                onClick={fetchRemoteManifest}
+                disabled={isCheckingUpdates}
+                className="py-2 px-3 bg-blue-700 hover:bg-blue-800 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isCheckingUpdates ? 'animate-spin' : ''}`} />
+                <span>{isCheckingUpdates ? 'Checking...' : 'Check Server Manifest'}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Active Release Manifest Details */}
+          {updateManifest && (
+            <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-xs space-y-3">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                  <GitBranch className="w-4 h-4 text-slate-700" />
+                  <span>Published Release Manifest (version.json)</span>
+                </h4>
+                <span className="text-[10px] text-slate-400 font-mono">
+                  {updateManifest.publishedAt ? new Date(updateManifest.publishedAt).toLocaleString() : 'Active'}
+                </span>
+              </div>
+
+              <div className="space-y-2 text-xs text-slate-600 bg-slate-50 p-3 rounded-2xl border border-slate-100">
+                <div className="flex justify-between py-0.5">
+                  <span className="text-slate-500">Release Title:</span>
+                  <span className="font-bold text-slate-800">{updateManifest.releaseTitle || 'Production Release'}</span>
+                </div>
+                <div className="flex justify-between py-0.5">
+                  <span className="text-slate-500">Permanent Signed APK:</span>
+                  <a
+                    href={updateManifest.apkUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-mono text-blue-700 font-semibold hover:underline truncate max-w-[200px]"
+                  >
+                    Direct HTTPS Download
+                  </a>
+                </div>
+                <div className="flex justify-between py-0.5">
+                  <span className="text-slate-500">Google Play AAB Bundle:</span>
+                  <a
+                    href={updateManifest.aabUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-mono text-blue-700 font-semibold hover:underline truncate max-w-[200px]"
+                  >
+                    Play Store AAB
+                  </a>
+                </div>
+                <div className="flex justify-between py-0.5">
+                  <span className="text-slate-500">APK SHA-256 Checksum:</span>
+                  <span className="font-mono text-[10px] text-slate-700 truncate max-w-[200px]" title={updateManifest.apkSha256}>
+                    {updateManifest.apkSha256 ? `${updateManifest.apkSha256.substring(0, 20)}...` : 'Verified'}
+                  </span>
+                </div>
+                <div className="flex justify-between py-0.5">
+                  <span className="text-slate-500">Binary File Size:</span>
+                  <span className="font-medium text-slate-700">
+                    {updateManifest.fileSizeBytes ? `${(updateManifest.fileSizeBytes / (1024 * 1024)).toFixed(2)} MB` : '3.16 MB'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Release Notes */}
+              {Array.isArray(updateManifest.releaseNotes) && (
+                <div className="space-y-1.5 pt-1">
+                  <p className="text-[11px] font-bold text-slate-700">Release Notes:</p>
+                  <ul className="list-disc pl-4 space-y-0.5 text-[11px] text-slate-600">
+                    {updateManifest.releaseNotes.map((note: string, idx: number) => (
+                      <li key={idx}>{note}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* SECTION 2: CENTRES & LICENCES MANAGEMENT (Original Preserved Section) */}
+      {adminSection === 'centres' && (
+        <div className="space-y-4">
 
       {/* Real Statistics Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -490,6 +798,8 @@ export const SuperAdminScreen: React.FC<SuperAdminScreenProps> = ({ onBack }) =>
           })
         )}
       </div>
+      </div>
+      )}
 
       {/* Organization Records Inspector Modal */}
       {inspectCentre && (

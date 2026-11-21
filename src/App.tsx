@@ -30,6 +30,7 @@ import { SuperAdminScreen } from './screens/SuperAdminScreen';
 import { DownloadAppScreen } from './screens/DownloadAppScreen';
 import { UpdateModal } from './components/common/UpdateModal';
 import { checkForAppUpdate, UpdateManifest } from './services/updateService';
+import { LiveUpdateService } from './services/liveUpdateService';
 import { CURRENT_APP_VERSION, AppVersionInfo } from './config/appVersion';
 
 export function AppContent() {
@@ -62,8 +63,14 @@ export function AppContent() {
     isMandatory: false,
   });
 
-  // Background Automatic Update Check on App Mount
+  // Background Automatic Update Check & Hybrid Live Boot Watchdog
   useEffect(() => {
+    // 1. Initialize Hybrid Live Web Update Watchdog
+    LiveUpdateService.initBootWatchdog().catch((err) =>
+      console.warn('LiveUpdate watchdog non-blocking warning:', err)
+    );
+
+    // 2. Run In-App APK Update Check
     const runAutoUpdateCheck = async () => {
       try {
         const res = await checkForAppUpdate({ force: false });
