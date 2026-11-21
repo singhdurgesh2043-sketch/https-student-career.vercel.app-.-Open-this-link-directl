@@ -14,6 +14,7 @@ import {
   Info,
   Clock,
   ExternalLink,
+  CheckCircle2,
 } from 'lucide-react';
 import { CentreProfile } from '../types';
 
@@ -198,11 +199,11 @@ export const DownloadAppScreen: React.FC<DownloadAppScreenProps> = ({
           </button>
         </div>
 
-        {/* Option 2: Native Android APK (Honest Status per rule 4) */}
-        <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-2xs space-y-2.5">
+        {/* Option 2: Native Android APK & AAB (Phase 3 Complete) */}
+        <div className="bg-white rounded-2xl p-4 border border-emerald-200 shadow-2xs space-y-3">
           <div className="flex items-start justify-between">
             <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center shrink-0">
+              <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0">
                 <Smartphone className="w-5 h-5" />
               </div>
               <div>
@@ -214,18 +215,31 @@ export const DownloadAppScreen: React.FC<DownloadAppScreenProps> = ({
                 </p>
               </div>
             </div>
-            <span className="text-[10px] font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full shrink-0 flex items-center gap-1">
-              <Clock className="w-3 h-3 text-amber-600" />
-              <span>Phase 3</span>
+            <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full shrink-0 flex items-center gap-1">
+              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+              <span>Built (v1.0)</span>
             </span>
           </div>
 
-          <div className="p-3 bg-slate-50 rounded-xl text-[11px] text-slate-600 leading-relaxed border border-slate-100 flex items-start gap-2">
-            <Info className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-            <span>
-              Signed Release APK and Android App Bundle (AAB) builds are scheduled in <strong>Phase 3</strong>. Use the 1-click PWA installer above to get the full native experience on your Android phone immediately.
-            </span>
+          <div className="p-3 bg-slate-50 rounded-xl text-[11px] text-slate-600 leading-relaxed border border-slate-100 space-y-1.5">
+            <div className="flex items-start gap-2">
+              <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+              <span>
+                <strong>Release APK (3.12 MB)</strong> and <strong>Play Store AAB (3.14 MB)</strong> have been successfully compiled in GitHub Actions.
+              </span>
+            </div>
           </div>
+
+          <a
+            href="https://github.com/singhdurgesh2043-sketch/https-student-career.vercel.app-.-Open-this-link-directl/actions/runs/44859338752"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full py-2.5 bg-emerald-700 hover:bg-emerald-800 active:scale-[0.98] text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition shadow"
+          >
+            <Download className="w-4 h-4" />
+            <span>Download Release APK & AAB (GitHub)</span>
+            <ExternalLink className="w-3.5 h-3.5 text-emerald-200" />
+          </a>
         </div>
 
         {/* Option 3: Shareable Link & WhatsApp */}
